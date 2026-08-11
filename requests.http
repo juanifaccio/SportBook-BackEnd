@@ -1,0 +1,65 @@
+### Listar tipos de cancha
+GET http://localhost:3000/api/tipos-cancha
+
+### Crear tipo de cancha
+POST http://localhost:3000/api/tipos-cancha
+Content-Type: application/json
+
+{
+    "nombre": "Fútbol 5",
+    "descripcion": "Cancha de fútbol 5"
+}
+
+
+### Crear correctamente
+POST http://localhost:3000/api/tipos-cancha
+Content-Type: application/json
+
+{
+    "nombre": "Básquet",
+    "descripcion": "Cancha de básquet"
+}
+
+### Crear sin nombre
+POST http://localhost:3000/api/tipos-cancha
+Content-Type: application/json
+
+{
+    "descripcion": "Cancha de básquet"
+}
+
+### Crear sin descripción
+POST http://localhost:3000/api/tipos-cancha
+Content-Type: application/json
+
+{
+    "nombre": "Básquet"
+}
+
+### Obtener tipo de cancha por ID
+GET http://localhost:3000/api/tipos-cancha/6
+
+### Obtener tipo de cancha por ID inexistente
+GET http://localhost:3000/api/tipos-cancha/999
+
+### Actualizar tipo de cancha
+PUT http://localhost:3000/api/tipos-cancha/1
+Content-Type: application/json
+
+{
+    "nombre": "Fútbol 7",
+    "descripcion": "Cancha de fútbol 7"
+}
+
+
+### Actualizar tipo de cancha inexistente
+PUT http://localhost:3000/api/tipos-cancha/999
+Content-Type: application/json
+
+{
+    "nombre": "Fútbol 7",
+    "descripcion": "Cancha de fútbol 7"
+}
+
+### Eliminar tipo de cancha
+DELETE http://localhost:3000/api/tipos-cancha/13
