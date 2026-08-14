@@ -3,6 +3,9 @@ const prisma = require('../config/prisma');
 /** Código con el que Prisma reporta la violación de un índice único. */
 const CODIGO_DUPLICADO = 'P2002';
 
+/** Código con el que Prisma reporta la violación de una clave foránea. */
+const CODIGO_CLAVE_FORANEA = 'P2003';
+
 /** Estados que acepta el enum `EstadoCancha` del schema. */
 const ESTADOS_VALIDOS = ['DISPONIBLE', 'MANTENIMIENTO'];
 
@@ -256,6 +259,14 @@ const eliminarCancha = async (req, res) => {
             mensaje: 'Cancha eliminada correctamente'
         });
     } catch (error) {
+        // La FK de Horario impide borrar una cancha que tiene turnos cargados:
+        // sin esto el error de la base saldría como un 500.
+        if (error.code === CODIGO_CLAVE_FORANEA) {
+            return res.status(409).json({
+                mensaje: 'No se puede eliminar la cancha porque tiene horarios asociados'
+            });
+        }
+
         console.error(error);
 
         res.status(500).json({

@@ -42,6 +42,29 @@ model Cancha {
 
   tipoCanchaId Int
   tipoCancha   TipoCancha @relation(fields: [tipoCanchaId], references: [id])
+
+  horarios Horario[]
+}
+
+model Horario {
+  id Int @id @default(autoincrement())
+  // La fecha es un día del calendario, sin hora: guardarla como DATE evita que
+  // el huso horario corra el turno al día anterior o al siguiente.
+  fecha      DateTime @db.Date
+  // Las horas se guardan como "HH:mm". Es el formato que entra y sale de la API,
+  // ordena igual que el reloj y evita el DateTime con fecha ficticia que impone
+  // el tipo TIME.
+  horaInicio String   @db.VarChar(5)
+  horaFin    String   @db.VarChar(5)
+  // Un turno nace libre y se marca ocupado cuando alguien lo reserva.
+  disponible Boolean  @default(true)
+
+  canchaId Int
+  cancha   Cancha @relation(fields: [canchaId], references: [id])
+
+  // Dos turnos que arrancan a la misma hora en la misma cancha y el mismo día
+  // son el mismo turno cargado dos veces.
+  @@unique([canchaId, fecha, horaInicio])
 }
 
 model TipoEvento {
