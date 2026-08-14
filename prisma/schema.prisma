@@ -18,6 +18,30 @@ model TipoCancha {
   // repetida con resultados incompletos.
   nombre      String @unique
   descripcion String
+
+  canchas Cancha[]
+}
+
+/// Una cancha en mantenimiento sigue existiendo en el complejo, pero no admite
+/// reservas nuevas. Es un enum y no un texto libre para que la base rechace
+/// cualquier otro valor.
+enum EstadoCancha {
+  DISPONIBLE
+  MANTENIMIENTO
+}
+
+model Cancha {
+  id Int @id @default(autoincrement())
+  // El nombre es cómo se identifica la cancha en el complejo ("Cancha 1"):
+  // repetirlo haría que el usuario no pueda saber cuál está reservando.
+  nombre        String       @unique
+  // Decimal y no Float: el precio se multiplica por horas y se suma en el total
+  // de la reserva, donde el redondeo binario del punto flotante se acumula.
+  precioPorHora Decimal      @db.Decimal(10, 2)
+  estado        EstadoCancha
+
+  tipoCanchaId Int
+  tipoCancha   TipoCancha @relation(fields: [tipoCanchaId], references: [id])
 }
 
 model TipoEvento {
