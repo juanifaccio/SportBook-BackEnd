@@ -16,3 +16,8 @@ model TipoCancha {
   nombre      String
   descripcion String
 }
+
+model TipoEvento {
+  id     Int    @id @default(autoincrement())
+  nombre String
+}
