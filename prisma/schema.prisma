@@ -67,6 +67,33 @@ model Horario {
   @@unique([canchaId, fecha, horaInicio])
 }
 
+model Rol {
+  id Int @id @default(autoincrement())
+  // Es un catálogo: dos filas "ADMIN" partirían a los usuarios entre dos ids que
+  // significan el mismo nivel de acceso.
+  nombre String @unique
+
+  usuarios Usuario[]
+}
+
+model Usuario {
+  id Int @id @default(autoincrement())
+  nombre String
+  // El email es con lo que el usuario se va a identificar al iniciar sesión:
+  // repetirlo haría ambigua la autenticación.
+  email      String  @unique
+  // Sin "ñ" porque el schema de Prisma no admite caracteres no ASCII en los
+  // nombres de campo. Guarda el hash de bcrypt, nunca la contraseña en claro.
+  contrasena String
+  telefono   String  @db.VarChar(20)
+  // Un usuario dado de baja se conserva: sus reservas pasadas siguen apuntando
+  // a él, así que se lo desactiva en vez de borrarlo.
+  activo     Boolean @default(true)
+
+  rolId Int
+  rol   Rol @relation(fields: [rolId], references: [id])
+}
+
 model TipoEvento {
   id     Int    @id @default(autoincrement())
   // Es un catálogo: un nombre repetido no clasifica nada y partiría los eventos
