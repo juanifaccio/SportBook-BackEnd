@@ -12,8 +12,11 @@ datasource db {
 }
 
 model TipoCancha {
-  id          Int    @id @default(autoincrement())
-  nombre      String
+  id Int @id @default(autoincrement())
+  // Es un catálogo: dos filas "Fútbol 5" partirían las canchas entre dos ids
+  // que significan lo mismo, y el listado filtrado por tipo mostraría la opción
+  // repetida con resultados incompletos.
+  nombre      String @unique
   descripcion String
 }
 
