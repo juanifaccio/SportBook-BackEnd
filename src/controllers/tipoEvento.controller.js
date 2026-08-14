@@ -1,5 +1,16 @@
 const prisma = require('../config/prisma');
 
+/** Código con el que Prisma reporta la violación de un índice único. */
+const CODIGO_DUPLICADO = 'P2002';
+
+/**
+ * Normaliza el nombre recibido. El `trim` no es cosmético: la colación de la
+ * base ignora mayúsculas, acentos y espacios al final, pero **no** los espacios
+ * al principio, así que sin esto un " Cumpleaños" se colaría junto al que ya
+ * existe y el índice único no lo detendría.
+ */
+const normalizarNombre = (nombre) => (typeof nombre === 'string' ? nombre.trim() : '');
+
 const listarTiposEvento = async (req, res) => {
     try {
         const tiposEvento = await prisma.tipoEvento.findMany();
@@ -16,7 +27,7 @@ const listarTiposEvento = async (req, res) => {
 
 const crearTipoEvento = async (req, res) => {
     try {
-        const { nombre } = req.body;
+        const nombre = normalizarNombre(req.body.nombre);
 
         if (!nombre) {
             return res.status(400).json({
@@ -32,6 +43,12 @@ const crearTipoEvento = async (req, res) => {
 
         res.status(201).json(tipoEvento);
     } catch (error) {
+        if (error.code === CODIGO_DUPLICADO) {
+            return res.status(409).json({
+                mensaje: 'Ya existe un tipo de evento con ese nombre'
+            });
+        }
+
         console.error(error);
 
         res.status(500).json({
@@ -75,7 +92,7 @@ const obtenerTipoEvento = async (req, res) => {
 const actualizarTipoEvento = async (req, res) => {
     try {
         const id = parseInt(req.params.id);
-        const { nombre } = req.body;
+        const nombre = normalizarNombre(req.body.nombre);
 
         if (isNaN(id)) {
             return res.status(400).json({
@@ -112,6 +129,12 @@ const actualizarTipoEvento = async (req, res) => {
 
         res.json(tipoEvento);
     } catch (error) {
+        if (error.code === CODIGO_DUPLICADO) {
+            return res.status(409).json({
+                mensaje: 'Ya existe un tipo de evento con ese nombre'
+            });
+        }
+
         console.error(error);
 
         res.status(500).json({

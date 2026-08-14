@@ -19,5 +19,7 @@ model TipoCancha {
 
 model TipoEvento {
   id     Int    @id @default(autoincrement())
-  nombre String
+  // Es un catálogo: un nombre repetido no clasifica nada y partiría los eventos
+  // entre dos ids que significan lo mismo.
+  nombre String @unique
 }
