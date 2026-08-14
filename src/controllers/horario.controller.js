@@ -107,7 +107,8 @@ const buscarSolapado = async (datos, idAExcluir) => {
 const listarHorarios = async (req, res) => {
     try {
         // El listado se consulta siempre por cancha: son los turnos de una cancha
-        // concreta, no un catálogo global.
+        // concreta, no un catálogo global. La fecha y la disponibilidad se suman
+        // para la pantalla de reservar, que necesita los turnos libres de un día.
         const filtro = {};
 
         if (req.query.canchaId !== undefined) {
@@ -120,6 +121,26 @@ const listarHorarios = async (req, res) => {
             }
 
             filtro.canchaId = canchaId;
+        }
+
+        if (req.query.fecha !== undefined) {
+            if (!FORMATO_FECHA.test(req.query.fecha)) {
+                return res.status(400).json({
+                    mensaje: 'La fecha debe tener el formato AAAA-MM-DD'
+                });
+            }
+
+            filtro.fecha = new Date(req.query.fecha);
+        }
+
+        if (req.query.disponible !== undefined) {
+            if (req.query.disponible !== 'true' && req.query.disponible !== 'false') {
+                return res.status(400).json({
+                    mensaje: 'El filtro disponible debe ser true o false'
+                });
+            }
+
+            filtro.disponible = req.query.disponible === 'true';
         }
 
         const horarios = await prisma.horario.findMany({

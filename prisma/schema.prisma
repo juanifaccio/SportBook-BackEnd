@@ -44,6 +44,7 @@ model Cancha {
   tipoCancha   TipoCancha @relation(fields: [tipoCanchaId], references: [id])
 
   horarios Horario[]
+  reservas Reserva[]
 }
 
 model Horario {
@@ -61,6 +62,8 @@ model Horario {
 
   canchaId Int
   cancha   Cancha @relation(fields: [canchaId], references: [id])
+
+  reservas Reserva[]
 
   // Dos turnos que arrancan a la misma hora en la misma cancha y el mismo día
   // son el mismo turno cargado dos veces.
@@ -92,6 +95,8 @@ model Usuario {
 
   rolId Int
   rol   Rol @relation(fields: [rolId], references: [id])
+
+  reservas Reserva[]
 }
 
 model TipoEvento {
@@ -99,4 +104,43 @@ model TipoEvento {
   // Es un catálogo: un nombre repetido no clasifica nada y partiría los eventos
   // entre dos ids que significan lo mismo.
   nombre String @unique
+}
+
+/// Una reserva nace CONFIRMADA porque todavía no hay pagos: cuando exista Pago,
+/// va a nacer PENDIENTE y el pago la va a confirmar. El estado ya está en el
+/// enum para no tener que migrarlo entonces. CANCELADA se conserva en vez de
+/// borrar la fila, así el turno queda con su historial.
+enum EstadoReserva {
+  PENDIENTE
+  CONFIRMADA
+  CANCELADA
+}
+
+model Reserva {
+  id Int @id @default(autoincrement())
+  // La fecha y las horas se copian del turno con los mismos tipos que Horario
+  // (DATE para que el huso no corra el día, "HH:mm" para que ordenen como el
+  // reloj). Son una copia y no una lectura de la relación a propósito: la
+  // reserva es un registro histórico, y editar el turno después no tiene que
+  // reescribir lo que el usuario reservó.
+  fecha       DateTime      @db.Date
+  horaInicio  String        @db.VarChar(5)
+  horaFin     String        @db.VarChar(5)
+  estado      EstadoReserva
+  // Decimal por el mismo motivo que Cancha.precioPorHora: es plata, y sale de
+  // multiplicar el precio por hora por la duración del turno.
+  precioTotal Decimal       @db.Decimal(10, 2)
+
+  usuarioId Int
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+
+  canchaId Int
+  cancha   Cancha @relation(fields: [canchaId], references: [id])
+
+  // El turno reservado. No lleva @unique aunque cada turno se reserve una sola
+  // vez: al cancelar una reserva el turno vuelve a quedar libre, y un índice
+  // único impediría volver a reservarlo. Lo que impide la doble reserva es
+  // marcar el turno como ocupado dentro de la misma transacción que la crea.
+  horarioId Int
+  horario   Horario @relation(fields: [horarioId], references: [id])
 }
