@@ -1,10 +1,15 @@
 {
   "name": "sportbook-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "API REST de SportBook, una aplicación para gestionar reservas de canchas deportivas",
+  "main": "src/app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "test": "echo \"Todavía no hay tests automatizados (tarea #17 del backlog)\" && exit 1"
   },
   "repository": {
     "type": "git",
