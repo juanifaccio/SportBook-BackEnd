@@ -133,10 +133,18 @@ const aRespuesta = (reserva) => ({
     }
 });
 
-/** Relaciones que acompañan a la reserva en todas las respuestas. */
+/**
+ * Relaciones que acompañan a la reserva en todas las respuestas. La cancha viaja
+ * con su tipo porque el detalle de una reserva lo muestra, y pedirlo aparte
+ * sería una consulta más por cada reserva que se abre.
+ */
 const RELACIONES = {
     usuario: true,
-    cancha: true,
+    cancha: {
+        include: {
+            tipoCancha: true
+        }
+    },
     horario: true
 };
 
