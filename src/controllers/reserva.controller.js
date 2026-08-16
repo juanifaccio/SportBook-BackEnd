@@ -14,6 +14,12 @@ const TURNO_OCUPADO = 'TURNO_OCUPADO';
 /** Estado con el que nace una reserva. Ver el comentario del enum en el schema. */
 const ESTADO_INICIAL = 'CONFIRMADA';
 
+/** Estado al que llega una reserva cancelada. */
+const ESTADO_CANCELADA = 'CANCELADA';
+
+/** Valores que acepta el enum `EstadoReserva`, para validar el filtro del listado. */
+const ESTADOS = ['PENDIENTE', 'CONFIRMADA', 'CANCELADA'];
+
 /**
  * Pasa una hora "HH:mm" a minutos desde la medianoche, para poder restar dos
  * horas y saber cuánto dura el turno.
@@ -23,6 +29,75 @@ const minutosDe = (hora) => {
 
     return horas * 60 + minutos;
 };
+
+/**
+ * Instante en el que arranca un turno.
+ *
+ * El día y la hora se guardan por separado (DATE + "HH:mm"), así que para saber
+ * si el turno ya pasó hay que rearmarlo. Se compone en hora local porque es la
+ * del complejo, que es contra la que el usuario decide si el turno todavía
+ * sirve.
+ */
+const comienzoDe = (fecha, horaInicio) => {
+    const [anio, mes, dia] = fecha.toISOString().slice(0, 10).split('-').map(Number);
+    const [hora, minuto] = horaInicio.split(':').map(Number);
+
+    return new Date(anio, mes - 1, dia, hora, minuto);
+};
+
+/** Un turno que ya arrancó no se puede reservar, ni reprogramar, ni cancelar. */
+const yaEmpezo = (fecha, horaInicio) => comienzoDe(fecha, horaInicio).getTime() <= Date.now();
+
+/**
+ * Precio por hora de la cancha por la duración del turno.
+ *
+ * Se redondea a dos decimales porque es lo que entra en el Decimal(10, 2) de la
+ * base: sin esto, un turno de 90 minutos a un precio con centavos dejaría que la
+ * base decidiera el redondeo.
+ */
+const precioDe = (horario) => {
+    const horas = (minutosDe(horario.horaFin) - minutosDe(horario.horaInicio)) / 60;
+
+    return Math.round(Number(horario.cancha.precioPorHora) * horas * 100) / 100;
+};
+
+/**
+ * Reglas que tiene que cumplir un turno para poder ocuparse, tanto al reservarlo
+ * como al reprogramar una reserva hacia él. Devuelve `{ codigo, mensaje }` si
+ * alguna no se cumple, para que las dos operaciones respondan lo mismo.
+ */
+const validarTurno = (horario) => {
+    if (horario.cancha.estado === 'MANTENIMIENTO') {
+        return {
+            codigo: 409,
+            mensaje: 'La cancha está en mantenimiento y no admite reservas'
+        };
+    }
+
+    if (yaEmpezo(horario.fecha, horario.horaInicio)) {
+        return {
+            codigo: 400,
+            mensaje: 'No se puede reservar un turno que ya empezó'
+        };
+    }
+
+    return {};
+};
+
+/**
+ * Datos que la reserva **copia** del turno. Son copia y no una lectura de la
+ * relación a propósito (ver el comentario del modelo en el schema), así que al
+ * reprogramar hay que volver a copiarlos todos: si solo se cambiara el
+ * `horarioId`, la reserva quedaría mostrando el día y el precio del turno viejo.
+ */
+const datosDelTurno = (horario) => ({
+    fecha: horario.fecha,
+    horaInicio: horario.horaInicio,
+    horaFin: horario.horaFin,
+    canchaId: horario.canchaId,
+    horarioId: horario.id,
+    precioTotal: precioDe(horario)
+});
 
 /**
  * Saca `contrasena` del usuario incluido. No es opcional: ese campo guarda el
@@ -58,10 +133,18 @@ const aRespuesta = (reserva) => ({
     }
 });
 
-/** Relaciones que acompañan a la reserva en todas las respuestas. */
+/**
+ * Relaciones que acompañan a la reserva en todas las respuestas. La cancha viaja
+ * con su tipo porque el detalle de una reserva lo muestra, y pedirlo aparte
+ * sería una consulta más por cada reserva que se abre.
+ */
 const RELACIONES = {
     usuario: true,
-    cancha: true,
+    cancha: {
+        include: {
+            tipoCancha: true
+        }
+    },
     horario: true
 };
 
@@ -94,7 +177,51 @@ const armarFiltro = (query) => {
         filtro.fecha = new Date(query.fecha);
     }
 
+    if (query.estado !== undefined) {
+        if (!ESTADOS.includes(query.estado)) {
+            return { mensaje: `El estado debe ser ${ESTADOS.join(', ')}` };
+        }
+
+        filtro.estado = query.estado;
+    }
+
     return { filtro };
+};
+
+/**
+ * Busca la reserva de la URL y comprueba que se la pueda modificar. Devuelve
+ * `{ codigo, mensaje }` si no, para que reprogramar y cancelar apliquen las
+ * mismas reglas.
+ */
+const buscarReservaModificable = async (idCrudo) => {
+    const id = parseInt(idCrudo);
+
+    if (isNaN(id)) {
+        return { codigo: 400, mensaje: 'El id debe ser un número' };
+    }
+
+    const reserva = await prisma.reserva.findUnique({
+        where: {
+            id: id
+        }
+    });
+
+    if (!reserva) {
+        return { codigo: 404, mensaje: 'Reserva no encontrada' };
+    }
+
+    if (reserva.estado === ESTADO_CANCELADA) {
+        return { codigo: 409, mensaje: 'La reserva ya está cancelada' };
+    }
+
+    // Una reserva que ya arrancó es historia: cancelarla liberaría un turno que
+    // no le sirve a nadie, y reprogramarla reescribiría lo que efectivamente
+    // pasó.
+    if (yaEmpezo(reserva.fecha, reserva.horaInicio)) {
+        return { codigo: 400, mensaje: 'La reserva ya empezó y no se puede modificar' };
+    }
+
+    return { reserva };
 };
 
 const listarReservas = async (req, res) => {
@@ -188,31 +315,13 @@ const crearReserva = async (req, res) => {
             });
         }
 
-        if (horario.cancha.estado === 'MANTENIMIENTO') {
-            return res.status(409).json({
-                mensaje: 'La cancha está en mantenimiento y no admite reservas'
+        const turnoInvalido = validarTurno(horario);
+
+        if (turnoInvalido.mensaje) {
+            return res.status(turnoInvalido.codigo).json({
+                mensaje: turnoInvalido.mensaje
             });
         }
-
-        // El turno se guarda como día + "HH:mm" por separado, así que para
-        // saber si ya pasó hay que rearmar el instante completo. Se compone en
-        // hora local porque es la del complejo, que es contra la que el usuario
-        // decide si el turno todavía sirve.
-        const [anio, mes, dia] = horario.fecha.toISOString().slice(0, 10).split('-').map(Number);
-        const [hora, minuto] = horario.horaInicio.split(':').map(Number);
-        const comienzo = new Date(anio, mes - 1, dia, hora, minuto);
-
-        if (comienzo.getTime() <= Date.now()) {
-            return res.status(400).json({
-                mensaje: 'No se puede reservar un turno que ya empezó'
-            });
-        }
-
-        const horas = (minutosDe(horario.horaFin) - minutosDe(horario.horaInicio)) / 60;
-        // Se redondea a dos decimales porque es lo que entra en el Decimal(10, 2)
-        // de la base: sin esto, un turno de 90 minutos a un precio con centavos
-        // dejaría que la base decidiera el redondeo.
-        const precioTotal = Math.round(Number(horario.cancha.precioPorHora) * horas * 100) / 100;
 
         const reserva = await prisma.$transaction(async (tx) => {
             // Este `updateMany` es el candado contra la doble reserva: al filtrar
@@ -235,14 +344,9 @@ const crearReserva = async (req, res) => {
 
             return tx.reserva.create({
                 data: {
-                    fecha: horario.fecha,
-                    horaInicio: horario.horaInicio,
-                    horaFin: horario.horaFin,
+                    ...datosDelTurno(horario),
                     estado: ESTADO_INICIAL,
-                    precioTotal: precioTotal,
-                    usuarioId: usuarioId,
-                    canchaId: horario.canchaId,
-                    horarioId: horarioId
+                    usuarioId: usuarioId
                 },
                 include: RELACIONES
             });
@@ -297,8 +401,173 @@ const obtenerReserva = async (req, res) => {
     }
 };
 
+/**
+ * Reprograma una reserva a otro turno.
+ *
+ * Es lo único que se puede modificar de una reserva, así que el cuerpo trae solo
+ * `horarioId`: la fecha, las horas, la cancha y el precio se vuelven a copiar del
+ * turno nuevo, igual que en el alta.
+ */
+const actualizarReserva = async (req, res) => {
+    try {
+        const { codigo, mensaje, reserva } = await buscarReservaModificable(req.params.id);
+
+        if (mensaje) {
+            return res.status(codigo).json({
+                mensaje: mensaje
+            });
+        }
+
+        const horarioId = parseInt(req.body.horarioId);
+
+        if (isNaN(horarioId)) {
+            return res.status(400).json({
+                mensaje: 'El turno es obligatorio'
+            });
+        }
+
+        // Sin esto, reprogramar al mismo turno liberaría el turno viejo —que es
+        // el mismo— después de haberlo tomado, y la reserva quedaría ocupando un
+        // turno marcado como libre.
+        if (horarioId === reserva.horarioId) {
+            return res.status(400).json({
+                mensaje: 'La reserva ya está en ese turno'
+            });
+        }
+
+        const horario = await prisma.horario.findUnique({
+            where: {
+                id: horarioId
+            },
+            include: {
+                cancha: true
+            }
+        });
+
+        // El turno llega en el cuerpo del request, así que un id inexistente es
+        // un dato inválido del cliente y no un recurso faltante en la URL.
+        if (!horario) {
+            return res.status(400).json({
+                mensaje: 'El turno indicado no existe'
+            });
+        }
+
+        const turnoInvalido = validarTurno(horario);
+
+        if (turnoInvalido.mensaje) {
+            return res.status(turnoInvalido.codigo).json({
+                mensaje: turnoInvalido.mensaje
+            });
+        }
+
+        const actualizada = await prisma.$transaction(async (tx) => {
+            // Se toma el turno nuevo con el mismo candado que usa el alta, y
+            // recién después se libera el viejo: si alguien se adelantó, la
+            // transacción se aborta y la reserva se queda donde estaba.
+            const ocupado = await tx.horario.updateMany({
+                where: {
+                    id: horarioId,
+                    disponible: true
+                },
+                data: {
+                    disponible: false
+                }
+            });
+
+            if (ocupado.count === 0) {
+                throw new Error(TURNO_OCUPADO);
+            }
+
+            await tx.horario.update({
+                where: {
+                    id: reserva.horarioId
+                },
+                data: {
+                    disponible: true
+                }
+            });
+
+            return tx.reserva.update({
+                where: {
+                    id: reserva.id
+                },
+                data: datosDelTurno(horario),
+                include: RELACIONES
+            });
+        });
+
+        res.json(aRespuesta(actualizada));
+    } catch (error) {
+        if (error.message === TURNO_OCUPADO) {
+            return res.status(409).json({
+                mensaje: 'El turno ya fue reservado'
+            });
+        }
+
+        console.error(error);
+
+        res.status(500).json({
+            mensaje: 'Error al actualizar la reserva'
+        });
+    }
+};
+
+/**
+ * Cancela una reserva y devuelve su turno a la lista de libres.
+ *
+ * La fila no se borra: una cancelación es un hecho del negocio y la reserva
+ * queda como historial. Las dos operaciones van en una transacción porque una
+ * reserva cancelada con el turno todavía ocupado dejaría ese turno perdido para
+ * siempre.
+ *
+ * No hace falta el candado del alta: mientras la reserva está activa su turno
+ * está en `disponible: false`, así que nadie más lo tiene.
+ */
+const cancelarReserva = async (req, res) => {
+    try {
+        const { codigo, mensaje, reserva } = await buscarReservaModificable(req.params.id);
+
+        if (mensaje) {
+            return res.status(codigo).json({
+                mensaje: mensaje
+            });
+        }
+
+        const cancelada = await prisma.$transaction(async (tx) => {
+            await tx.horario.update({
+                where: {
+                    id: reserva.horarioId
+                },
+                data: {
+                    disponible: true
+                }
+            });
+
+            return tx.reserva.update({
+                where: {
+                    id: reserva.id
+                },
+                data: {
+                    estado: ESTADO_CANCELADA
+                },
+                include: RELACIONES
+            });
+        });
+
+        res.json(aRespuesta(cancelada));
+    } catch (error) {
+        console.error(error);
+
+        res.status(500).json({
+            mensaje: 'Error al cancelar la reserva'
+        });
+    }
+};
+
 module.exports = {
     listarReservas,
     crearReserva,
-    obtenerReserva
+    obtenerReserva,
+    actualizarReserva,
+    cancelarReserva
 };
