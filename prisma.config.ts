@@ -7,6 +7,10 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    // Crea el administrador inicial. Declarado acá para que `prisma migrate
+    // reset` lo corra solo: si no, una base recién reseteada queda sin ninguna
+    // cuenta con la que iniciar sesión.
+    seed: "node prisma/seed.js",
   },
   datasource: {
     url: process.env["DATABASE_URL"],

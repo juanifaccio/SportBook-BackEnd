@@ -9,6 +9,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
+    "seed": "node prisma/seed.js",
     "test": "echo \"Todavía no hay tests automatizados (tarea #17 del backlog)\" && exit 1"
   },
   "repository": {
@@ -30,6 +31,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "mariadb": "^3.5.3",
     "prisma": "^7.9.1"
   }
