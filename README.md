@@ -46,22 +46,28 @@ npm install
 
 ## Configuración
 
-Prisma necesita saber cómo conectarse a MySQL para aplicar las migraciones. Creá
-un archivo `.env` en la raíz del proyecto con una única variable:
+Toda la configuración del backend sale de un archivo `.env` en la raíz del
+proyecto. Hay una plantilla versionada, `.env.example`: copiala y completá los
+valores con los de tu máquina.
 
+```bash
+cp .env.example .env
 ```
-DATABASE_URL=mysql://USUARIO:CONTRASEÑA@localhost:3306/sportsbook
-```
 
-Reemplazá `USUARIO` y `CONTRASEÑA` por las credenciales de tu servidor MySQL. El
-`.env` **no se versiona** (está en `.gitignore`), porque contiene credenciales.
+| Variable | Obligatoria | Qué es |
+|---|---|---|
+| `DATABASE_URL` | Sí | Conexión a MySQL, en formato `mysql://usuario:contrasena@host:puerto/base` |
+| `PORT` | No | Puerto en el que escucha la API. Si no está, se usa `3000` |
 
-> ⚠️ **Por ahora las credenciales están además escritas en el código.** El
-> servidor lee la conexión de `src/config/prisma.js`, donde host, usuario,
-> contraseña y base están hardcodeados; el `.env` hoy lo usa **solo** Prisma para
-> las migraciones. Si tus credenciales no son `root` / `root`, tenés que
-> cambiarlas también en ese archivo para que la API arranque. Unificar las dos
-> puntas en el `.env` es la tarea #18 del backlog.
+`DATABASE_URL` es la **única** fuente de la conexión: la usan tanto el servidor
+como el CLI de Prisma para las migraciones. No hay credenciales escritas en el
+código.
+
+El `.env` **no se versiona** (está en `.gitignore`), porque contiene
+credenciales; el que sí se versiona es `.env.example`, que no las tiene.
+
+Si falta una variable o viene mal escrita, el servidor no arranca y explica cuál
+es el problema, en vez de fallar más tarde contra la base.
 
 ## Crear la base de datos
 
@@ -84,8 +90,8 @@ Para levantar el servidor:
 npm start
 ```
 
-La API queda escuchando en `http://localhost:3000`. Para comprobar que arrancó
-bien:
+La API queda escuchando en `http://localhost:3000`, o en el puerto que hayas
+puesto en `PORT`. Para comprobar que arrancó bien:
 
 ```bash
 curl http://localhost:3000
@@ -97,7 +103,7 @@ Debería responder `{"mensaje":"SportBook Backend funcionando"}`.
 
 | Comando | Qué hace |
 |---|---|
-| `npm start` | Levanta el servidor en `http://localhost:3000` |
+| `npm start` | Levanta el servidor en `http://localhost:3000` (o en el puerto de `PORT`) |
 | `npm run dev` | Igual, pero reinicia solo ante cada cambio en el código |
 | `npm run prisma:migrate` | Crea y aplica las migraciones pendientes, y regenera el cliente |
 | `npm run prisma:generate` | Regenera el cliente de Prisma (tras editar `schema.prisma`) |
@@ -110,11 +116,13 @@ El backend está organizado **en capas**: cada petición baja de las rutas al
 controlador y del controlador a Prisma, sin saltear niveles.
 
 ```
+.env.example          plantilla de configuración: copiar como .env
 prisma/
   schema.prisma       modelo de datos: única fuente de verdad del esquema
   migrations/         historial versionado de cambios de la base
 src/
   app.js              punto de entrada: middlewares y montaje de cada recurso
+  config/env.js       lee y valida las variables de ambiente
   config/prisma.js    instancia única de PrismaClient (acceso a la base)
   routes/             mapea verbo + URL a la función del controlador
   controllers/        valida la entrada, opera y arma la respuesta JSON

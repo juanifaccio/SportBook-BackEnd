@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 
+const { puerto } = require('./config/env');
+
 const app = express();
 
 const tipoCanchaRoutes = require('./routes/tipoCancha.routes');
@@ -26,6 +28,6 @@ app.get('/', (req, res) => {
   res.json({ mensaje: 'SportBook Backend funcionando' });
 });
 
-app.listen(3000, () => {
-  console.log('Servidor ejecutándose en http://localhost:3000');
+app.listen(puerto, () => {
+  console.log(`Servidor ejecutándose en http://localhost:${puerto}`);
 });
