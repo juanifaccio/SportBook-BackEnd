@@ -1,8 +1,40 @@
+# Toda la API pide sesión menos el login. Ejecutá primero "Iniciar sesión": las
+# peticiones de abajo toman el token de su respuesta con {{login.response.body.token}}.
+
+### Iniciar sesión
+# @name login
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin@sportbook.com",
+    "contrasena": "cambiame"
+}
+
+### Ver el usuario de la sesión
+GET http://localhost:3000/api/auth/yo
+Authorization: Bearer {{login.response.body.token}}
+
+### Iniciar sesión con la contraseña incorrecta
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin@sportbook.com",
+    "contrasena": "no-es-esta"
+}
+
+### Pedir un recurso sin token
+GET http://localhost:3000/api/tipos-cancha
+
+
 ### Listar tipos de cancha
 GET http://localhost:3000/api/tipos-cancha
+Authorization: Bearer {{login.response.body.token}}
 
 ### Crear tipo de cancha
 POST http://localhost:3000/api/tipos-cancha
+Authorization: Bearer {{login.response.body.token}}
 Content-Type: application/json
 
 {
@@ -13,6 +45,7 @@ Content-Type: application/json
 
 ### Crear correctamente
 POST http://localhost:3000/api/tipos-cancha
+Authorization: Bearer {{login.response.body.token}}
 Content-Type: application/json
 
 {
@@ -22,6 +55,7 @@ Content-Type: application/json
 
 ### Crear sin nombre
 POST http://localhost:3000/api/tipos-cancha
+Authorization: Bearer {{login.response.body.token}}
 Content-Type: application/json
 
 {
@@ -30,6 +64,7 @@ Content-Type: application/json
 
 ### Crear sin descripción
 POST http://localhost:3000/api/tipos-cancha
+Authorization: Bearer {{login.response.body.token}}
 Content-Type: application/json
 
 {
@@ -38,12 +73,15 @@ Content-Type: application/json
 
 ### Obtener tipo de cancha por ID
 GET http://localhost:3000/api/tipos-cancha/6
+Authorization: Bearer {{login.response.body.token}}
 
 ### Obtener tipo de cancha por ID inexistente
 GET http://localhost:3000/api/tipos-cancha/999
+Authorization: Bearer {{login.response.body.token}}
 
 ### Actualizar tipo de cancha
 PUT http://localhost:3000/api/tipos-cancha/1
+Authorization: Bearer {{login.response.body.token}}
 Content-Type: application/json
 
 {
@@ -54,6 +92,7 @@ Content-Type: application/json
 
 ### Actualizar tipo de cancha inexistente
 PUT http://localhost:3000/api/tipos-cancha/999
+Authorization: Bearer {{login.response.body.token}}
 Content-Type: application/json
 
 {
@@ -63,6 +102,7 @@ Content-Type: application/json
 
 ### Eliminar tipo de cancha
 DELETE http://localhost:3000/api/tipos-cancha/3
+Authorization: Bearer {{login.response.body.token}}
 
 
 ##############################
@@ -71,20 +111,26 @@ DELETE http://localhost:3000/api/tipos-cancha/3
 
 ### Listar todas las reservas
 GET http://localhost:3000/api/reservas
+Authorization: Bearer {{login.response.body.token}}
 
 ### Listar filtrando por cancha, día y estado
 GET http://localhost:3000/api/reservas?canchaId=1&fecha=2026-08-20&estado=CONFIRMADA
+Authorization: Bearer {{login.response.body.token}}
 
 ### Listar con un estado que no existe (400)
 GET http://localhost:3000/api/reservas?estado=BASURA
+Authorization: Bearer {{login.response.body.token}}
 
 ### Turnos libres de una cancha en un día (para elegir horarioId)
 GET http://localhost:3000/api/horarios?canchaId=1&fecha=2026-08-20&disponible=true
+Authorization: Bearer {{login.response.body.token}}
 
 ### Reservar un turno
-# El cuerpo lleva solo el turno y el usuario: la fecha, las horas, la cancha,
-# el estado y el precio los deriva el backend del turno.
+# El cuerpo lleva solo el turno: la fecha, las horas, la cancha, el estado y el
+# precio los deriva el backend. El `usuarioId` solo lo puede mandar un ADMIN, que
+# reserva a nombre de otro; para un CLIENTE el dueño sale siempre de su sesión.
 POST http://localhost:3000/api/reservas
+Authorization: Bearer {{login.response.body.token}}
 Content-Type: application/json
 
 {
@@ -94,6 +140,7 @@ Content-Type: application/json
 
 ### Reservar el mismo turno otra vez (409)
 POST http://localhost:3000/api/reservas
+Authorization: Bearer {{login.response.body.token}}
 Content-Type: application/json
 
 {
@@ -103,11 +150,13 @@ Content-Type: application/json
 
 ### Obtener una reserva
 GET http://localhost:3000/api/reservas/1
+Authorization: Bearer {{login.response.body.token}}
 
 ### Reprogramar la reserva a otro turno libre
 # Libera el turno anterior y copia del nuevo la fecha, las horas, la cancha y
 # el precio total.
 PUT http://localhost:3000/api/reservas/1
+Authorization: Bearer {{login.response.body.token}}
 Content-Type: application/json
 
 {
@@ -116,6 +165,7 @@ Content-Type: application/json
 
 ### Reprogramar al turno en el que ya está (400)
 PUT http://localhost:3000/api/reservas/1
+Authorization: Bearer {{login.response.body.token}}
 Content-Type: application/json
 
 {
@@ -124,6 +174,7 @@ Content-Type: application/json
 
 ### Reprogramar a un turno inexistente (400)
 PUT http://localhost:3000/api/reservas/1
+Authorization: Bearer {{login.response.body.token}}
 Content-Type: application/json
 
 {
@@ -133,9 +184,12 @@ Content-Type: application/json
 ### Cancelar la reserva
 # No borra la fila: la deja en CANCELADA y devuelve el turno a la lista de libres.
 PUT http://localhost:3000/api/reservas/1/cancelar
+Authorization: Bearer {{login.response.body.token}}
 
 ### Cancelar la misma reserva otra vez (409)
 PUT http://localhost:3000/api/reservas/1/cancelar
+Authorization: Bearer {{login.response.body.token}}
 
 ### Cancelar una reserva inexistente (404)
 PUT http://localhost:3000/api/reservas/9999/cancelar
+Authorization: Bearer {{login.response.body.token}}

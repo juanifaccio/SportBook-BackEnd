@@ -12,6 +12,15 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env'), quiet: t
 const PUERTO_POR_DEFECTO = 3000;
 const PUERTO_MYSQL_POR_DEFECTO = 3306;
 
+/** Cuánto vale un token antes de que haya que volver a iniciar sesión. */
+const EXPIRACION_JWT_POR_DEFECTO = '8h';
+
+/**
+ * Largo mínimo del secreto con el que se firman los tokens. Un secreto corto se
+ * adivina por fuerza bruta, y con él se puede firmar un token de administrador.
+ */
+const LARGO_MINIMO_SECRETO = 32;
+
 const requerida = (nombre) => {
   const valor = process.env[nombre];
   if (!valor) {
@@ -62,7 +71,42 @@ const leerBaseDeDatos = () => {
   };
 };
 
+// El secreto de firma es lo único que separa un token legítimo de uno fabricado,
+// así que no tiene valor por defecto: sin él el servidor no arranca. Uno
+// hardcodeado como reserva sería público —está en el repo— y cualquiera podría
+// firmarse un token de administrador.
+const leerJwt = () => {
+  const secreto = requerida('JWT_SECRET');
+
+  if (secreto.length < LARGO_MINIMO_SECRETO) {
+    throw new Error(
+      `JWT_SECRET tiene que tener al menos ${LARGO_MINIMO_SECRETO} caracteres. ` +
+        'Podés generar uno con: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"'
+    );
+  }
+
+  return {
+    secreto,
+    // Formato de `jsonwebtoken`: "8h", "30m", "7d".
+    expiracion: process.env.JWT_EXPIRACION || EXPIRACION_JWT_POR_DEFECTO
+  };
+};
+
+/**
+ * Credenciales del administrador inicial que siembra `prisma/seed.js`.
+ *
+ * Es una función y no un valor como los demás porque solo las necesita el seed:
+ * el servidor tiene que poder arrancar sin ellas, pero la validación vive igual
+ * acá, que es el único lugar que lee `process.env`.
+ */
+const leerAdminInicial = () => ({
+  email: requerida('ADMIN_EMAIL').trim().toLowerCase(),
+  contrasena: requerida('ADMIN_CONTRASENA')
+});
+
 module.exports = {
   puerto: leerPuerto(),
-  baseDeDatos: leerBaseDeDatos()
+  baseDeDatos: leerBaseDeDatos(),
+  jwt: leerJwt(),
+  leerAdminInicial
 };

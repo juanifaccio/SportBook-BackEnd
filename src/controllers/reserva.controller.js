@@ -1,4 +1,17 @@
 const prisma = require('../config/prisma');
+const ROLES = require('../config/roles');
+
+/**
+ * Una reserva es de quien la hizo. El administrador ve y gestiona todas —es el
+ * mostrador del complejo—; el cliente, solo las suyas.
+ *
+ * Este control no puede vivir en las rutas como el del resto de los recursos:
+ * ahí se sabe qué se está pidiendo, pero no de quién es la reserva que hay del
+ * otro lado del `:id`.
+ */
+const esAdmin = (usuario) => usuario.rol.nombre === ROLES.ADMIN;
+
+const esPropia = (reserva, usuario) => reserva.usuarioId === usuario.id;
 
 /** Formato de la fecha que entra y sale de la API: "AAAA-MM-DD". */
 const FORMATO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
@@ -193,7 +206,7 @@ const armarFiltro = (query) => {
  * `{ codigo, mensaje }` si no, para que reprogramar y cancelar apliquen las
  * mismas reglas.
  */
-const buscarReservaModificable = async (idCrudo) => {
+const buscarReservaModificable = async (idCrudo, solicitante) => {
     const id = parseInt(idCrudo);
 
     if (isNaN(id)) {
@@ -208,6 +221,12 @@ const buscarReservaModificable = async (idCrudo) => {
 
     if (!reserva) {
         return { codigo: 404, mensaje: 'Reserva no encontrada' };
+    }
+
+    // Antes que cualquier regla del negocio: si la reserva no es suya, al
+    // cliente ni siquiera le corresponde enterarse de en qué estado está.
+    if (!esAdmin(solicitante) && !esPropia(reserva, solicitante)) {
+        return { codigo: 403, mensaje: 'La reserva es de otro usuario' };
     }
 
     if (reserva.estado === ESTADO_CANCELADA) {
@@ -234,6 +253,14 @@ const listarReservas = async (req, res) => {
             });
         }
 
+        // Se pisa el filtro en vez de rechazar el pedido: `?usuarioId=` es un
+        // filtro del listado de administración, y para el cliente el listado es
+        // siempre el suyo. Como va después de `armarFiltro`, mandar el id de
+        // otro usuario en la query no cambia nada.
+        if (!esAdmin(req.usuario)) {
+            filtro.usuarioId = req.usuario.id;
+        }
+
         // Las más nuevas primero: es el orden en el que se las mira desde la
         // administración del complejo.
         const reservas = await prisma.reserva.findMany({
@@ -258,15 +285,20 @@ const listarReservas = async (req, res) => {
 /**
  * Crea la reserva de un turno.
  *
- * El cliente manda solamente el turno y el usuario: la fecha, las horas, la
- * cancha, el estado y el precio los deriva el backend del turno elegido. Un
- * precio que llega del navegador no se puede creer, y copiarlo del turno evita
- * que el cliente reserve un horario con los datos de otro.
+ * El cliente manda solamente el turno: la fecha, las horas, la cancha, el estado
+ * y el precio los deriva el backend del turno elegido. Un precio que llega del
+ * navegador no se puede creer, y copiarlo del turno evita que el cliente reserve
+ * un horario con los datos de otro.
+ *
+ * El dueño de la reserva sale de la sesión, no del cuerpo: si viniera del
+ * cliente, cualquiera podría reservar a nombre de otro. La excepción es el
+ * administrador, que reserva desde el mostrador para quien se lo pide, y por eso
+ * es el único que puede mandar `usuarioId`.
  */
 const crearReserva = async (req, res) => {
     try {
         const horarioId = parseInt(req.body.horarioId);
-        const usuarioId = parseInt(req.body.usuarioId);
+        const usuarioId = esAdmin(req.usuario) ? parseInt(req.body.usuarioId) : req.usuario.id;
 
         if (isNaN(horarioId)) {
             return res.status(400).json({
@@ -391,6 +423,12 @@ const obtenerReserva = async (req, res) => {
             });
         }
 
+        if (!esAdmin(req.usuario) && !esPropia(reserva, req.usuario)) {
+            return res.status(403).json({
+                mensaje: 'La reserva es de otro usuario'
+            });
+        }
+
         res.json(aRespuesta(reserva));
     } catch (error) {
         console.error(error);
@@ -410,7 +448,7 @@ const obtenerReserva = async (req, res) => {
  */
 const actualizarReserva = async (req, res) => {
     try {
-        const { codigo, mensaje, reserva } = await buscarReservaModificable(req.params.id);
+        const { codigo, mensaje, reserva } = await buscarReservaModificable(req.params.id, req.usuario);
 
         if (mensaje) {
             return res.status(codigo).json({
@@ -525,7 +563,7 @@ const actualizarReserva = async (req, res) => {
  */
 const cancelarReserva = async (req, res) => {
     try {
-        const { codigo, mensaje, reserva } = await buscarReservaModificable(req.params.id);
+        const { codigo, mensaje, reserva } = await buscarReservaModificable(req.params.id, req.usuario);
 
         if (mensaje) {
             return res.status(codigo).json({

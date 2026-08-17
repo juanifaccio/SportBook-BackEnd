@@ -19,6 +19,8 @@ través de esta API, en JSON. El frontend vive en su propio repositorio,
   para hablar el protocolo MySQL
 - **MySQL 8** como base de datos (externa, no embebida)
 - [bcryptjs](https://www.npmjs.com/package/bcryptjs) para hashear contraseñas
+- [jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken) para los tokens de
+  sesión (JWT)
 
 ## Requisitos previos
 
@@ -57,11 +59,23 @@ cp .env.example .env
 | Variable | Obligatoria | Qué es |
 |---|---|---|
 | `DATABASE_URL` | Sí | Conexión a MySQL, en formato `mysql://usuario:contrasena@host:puerto/base` |
+| `JWT_SECRET` | Sí | Secreto con el que se firman los tokens de sesión. Mínimo 32 caracteres |
 | `PORT` | No | Puerto en el que escucha la API. Si no está, se usa `3000` |
+| `JWT_EXPIRACION` | No | Cuánto dura la sesión (`30m`, `8h`, `7d`). Si no está, 8 horas |
+| `ADMIN_EMAIL` | Solo el seed | Email del administrador inicial que crea `npm run seed` |
+| `ADMIN_CONTRASENA` | Solo el seed | Su contraseña |
 
 `DATABASE_URL` es la **única** fuente de la conexión: la usan tanto el servidor
 como el CLI de Prisma para las migraciones. No hay credenciales escritas en el
 código.
+
+`JWT_SECRET` no tiene valor por defecto a propósito: uno escrito en el código
+sería público —está en el repositorio— y cualquiera podría firmarse un token de
+administrador. Generá el tuyo con:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
 
 El `.env` **no se versiona** (está en `.gitignore`), porque contiene
 credenciales; el que sí se versiona es `.env.example`, que no las tiene.
@@ -79,8 +93,21 @@ npm run prisma:migrate
 ```
 
 Esto deja las tablas creadas y siembra el catálogo de roles con `ADMIN` y
-`CLIENTE`. El resto de las tablas quedan vacías: los datos se cargan desde el
-frontend o con las peticiones de `requests.http`.
+`CLIENTE`. El resto de las tablas quedan vacías.
+
+## Crear el administrador inicial
+
+La API pide iniciar sesión, y las cuentas las da de alta un administrador: sin
+uno, a una base recién migrada no se puede entrar. Este comando crea el primero,
+con el email y la contraseña que pusiste en `ADMIN_EMAIL` y `ADMIN_CONTRASENA`:
+
+```bash
+npm run seed
+```
+
+Se puede correr las veces que haga falta: si el email ya está registrado, no lo
+toca. A partir de ahí, el resto de los usuarios se cargan desde el frontend o con
+las peticiones de `requests.http`.
 
 ## Ejecución
 
@@ -108,6 +135,7 @@ Debería responder `{"mensaje":"SportBook Backend funcionando"}`.
 | `npm run prisma:migrate` | Crea y aplica las migraciones pendientes, y regenera el cliente |
 | `npm run prisma:generate` | Regenera el cliente de Prisma (tras editar `schema.prisma`) |
 | `npm run prisma:studio` | Abre Prisma Studio para inspeccionar los datos en el navegador |
+| `npm run seed` | Crea el administrador inicial a partir del `.env` |
 | `npm test` | Todavía sin implementar (tarea #17 del backlog) |
 
 ## Estructura del proyecto
@@ -120,10 +148,13 @@ controlador y del controlador a Prisma, sin saltear niveles.
 prisma/
   schema.prisma       modelo de datos: única fuente de verdad del esquema
   migrations/         historial versionado de cambios de la base
+  seed.js             crea el administrador inicial
 src/
   app.js              punto de entrada: middlewares y montaje de cada recurso
   config/env.js       lee y valida las variables de ambiente
   config/prisma.js    instancia única de PrismaClient (acceso a la base)
+  config/roles.js     nombres de los niveles de acceso (ADMIN, CLIENTE)
+  middlewares/        se ejecutan antes del controlador: sesión y permisos
   routes/             mapea verbo + URL a la función del controlador
   controllers/        valida la entrada, opera y arma la respuesta JSON
   generated/prisma/   cliente generado por Prisma — no se edita ni se versiona
@@ -132,6 +163,45 @@ src/
 ## API
 
 Todos los recursos cuelgan de `/api`. Los cuerpos y las respuestas son JSON.
+
+### Autenticación — `/api/auth`
+
+| Verbo | URL | Qué hace |
+|---|---|---|
+| `POST` | `/api/auth/login` | Valida email y contraseña y devuelve el token |
+| `GET` | `/api/auth/yo` | Devuelve el usuario de la sesión en curso |
+
+`POST /api/auth/login` recibe `{ email, contrasena }` y responde
+`{ token, usuario }`. **Es el único endpoint público**: todos los demás piden el
+token en la cabecera `Authorization`.
+
+```
+Authorization: Bearer <token>
+```
+
+El token es un JWT firmado con `JWT_SECRET` que vence según `JWT_EXPIRACION`. No
+hay endpoint de logout: como el servidor no guarda las sesiones, cerrar sesión es
+que el cliente descarte el token.
+
+En cada petición el usuario se vuelve a leer de la base en lugar de confiar en lo
+que dice el token: así, dar de baja o cambiarle el rol a alguien tiene efecto en
+el momento y no cuando le venza la sesión.
+
+### Niveles de acceso
+
+Los dos roles del catálogo `Rol` son los niveles de acceso:
+
+| | `ADMIN` | `CLIENTE` |
+|---|---|---|
+| Tipos de cancha, tipos de evento, canchas, horarios | Todo | Solo consultar |
+| Usuarios y roles | Todo | Nada |
+| Reservas | Todas | Solo las suyas |
+
+Un `CLIENTE` consulta canchas y turnos porque los necesita para reservar, pero no
+los administra. Sus reservas son suyas: el listado le devuelve solamente las
+propias —aunque filtre por `?usuarioId=` de otro—, y pedir, reprogramar o
+cancelar una ajena responde `403`. Al reservar, el dueño sale de la sesión y no
+del cuerpo del pedido.
 
 ### Tipos de cancha — `/api/tipos-cancha`
 
@@ -178,6 +248,8 @@ las horas como `"HH:mm"`. No se admiten turnos solapados en la misma cancha.
 
 Es un **catálogo de solo lectura**: los roles se siembran por migración y son los
 niveles de acceso del login. No tiene alta, baja ni modificación a propósito.
+Solo lo consultan los administradores, que son quienes asignan el rol al dar de
+alta un usuario.
 
 ### Usuarios — `/api/usuarios`
 
@@ -199,9 +271,11 @@ No es un ABM: es el caso de uso central de la aplicación.
 | `PUT` | `/api/reservas/:id` | Reprograma a otro turno libre |
 | `PUT` | `/api/reservas/:id/cancelar` | Cancela y libera el turno |
 
-El alta recibe solo `{ horarioId, usuarioId }` y la reprogramación solo
-`{ horarioId }`: la fecha, las horas, la cancha y el precio total se derivan del
-turno en el servidor, no se aceptan del cliente.
+El alta recibe solo `{ horarioId }` y la reprogramación también: la fecha, las
+horas, la cancha y el precio total se derivan del turno en el servidor, no se
+aceptan del cliente. El dueño de la reserva sale de la sesión; un `ADMIN` puede
+agregar `usuarioId` para reservar a nombre de otro desde el mostrador, y para él
+ese campo es obligatorio.
 
 `GET /api/reservas` acepta filtros por query string, combinables:
 
@@ -222,6 +296,8 @@ conserva como historial y su turno vuelve a la lista de libres.
 | `200 OK` | Listar, obtener, modificar o eliminar con éxito |
 | `201 Created` | Alta con éxito |
 | `400 Bad Request` | Faltan datos, o vienen con un formato o un id inválido |
+| `401 Unauthorized` | Falta el token, venció o no es válido |
+| `403 Forbidden` | Hay sesión, pero ese usuario no puede hacer eso |
 | `404 Not Found` | El recurso pedido no existe |
 | `409 Conflict` | Choca con el estado actual: turno ya tomado, registro referenciado por otro, reserva ya cancelada |
 | `500 Internal Server Error` | Error inesperado del servidor |
