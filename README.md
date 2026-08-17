@@ -296,8 +296,8 @@ conserva como historial y su turno vuelve a la lista de libres.
 | `200 OK` | Listar, obtener, modificar o eliminar con éxito |
 | `201 Created` | Alta con éxito |
 | `400 Bad Request` | Faltan datos, o vienen con un formato o un id inválido |
-| `401 Unauthorized` | Falta el token, venció o no es válido |
-| `403 Forbidden` | Hay sesión, pero ese usuario no puede hacer eso |
+| `401 Unauthorized` | La sesión no sirve: falta el token, venció, no es válido o la cuenta está dada de baja |
+| `403 Forbidden` | La sesión sirve, pero ese usuario no puede hacer eso |
 | `404 Not Found` | El recurso pedido no existe |
 | `409 Conflict` | Choca con el estado actual: turno ya tomado, registro referenciado por otro, reserva ya cancelada |
 | `500 Internal Server Error` | Error inesperado del servidor |

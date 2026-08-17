@@ -59,8 +59,12 @@ const autenticar = async (req, res, next) => {
     // La baja lógica de un usuario tiene que cortarle el acceso, no solo
     // impedirle reservar: si no, quien fue dado de baja sigue entrando con el
     // token que ya tenía.
+    //
+    // Es 401 y no 403 porque lo que dejó de valer es la sesión, no el permiso
+    // para este endpoint en particular. Esa distinción es la que le permite al
+    // frontend deslogear ante un 401 y limitarse a avisar ante un 403.
     if (!usuario.activo) {
-      return res.status(403).json({
+      return res.status(401).json({
         mensaje: 'La cuenta está dada de baja'
       });
     }
