@@ -206,8 +206,5 @@ module.exports = {
   sembrar,
   tokenDe,
   autorizacion,
-  diaRelativo,
-  CONTRASENA,
-  MANANA,
-  AYER
+  CONTRASENA
 };
