@@ -105,6 +105,53 @@ DELETE http://localhost:3000/api/tipos-cancha/3
 Authorization: Bearer {{login.response.body.token}}
 
 
+### Actualizar los datos del perfil propio
+# Va sobre el usuario de la sesión, no sobre un :id. El rolId, el activo y la
+# contraseña se descartan aunque vengan en el cuerpo.
+PUT http://localhost:3000/api/auth/yo
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "nombre": "Nombre Corregido",
+    "email": "corregido@sportbook.local",
+    "telefono": "341 555-1111"
+}
+
+### Intentar ascenderse a ADMIN desde el perfil (el rolId se ignora)
+PUT http://localhost:3000/api/auth/yo
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "nombre": "Nombre Corregido",
+    "email": "corregido@sportbook.local",
+    "telefono": "341 555-1111",
+    "rolId": 1,
+    "activo": false
+}
+
+### Cambiar la contraseña propia
+PUT http://localhost:3000/api/auth/yo/contrasena
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "contrasenaActual": "admin1234",
+    "contrasenaNueva": "claveNueva456"
+}
+
+### Cambiarla con la actual incorrecta (400, no 401)
+PUT http://localhost:3000/api/auth/yo/contrasena
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "contrasenaActual": "no-es-esta",
+    "contrasenaNueva": "claveNueva456"
+}
+
+
 ##############################
 # Reservas
 ##############################

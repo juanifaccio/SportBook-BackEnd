@@ -242,6 +242,8 @@ Todos los recursos cuelgan de `/api`. Los cuerpos y las respuestas son JSON.
 |---|---|---|
 | `POST` | `/api/auth/login` | Valida email y contraseña y devuelve el token |
 | `GET` | `/api/auth/yo` | Devuelve el usuario de la sesión en curso |
+| `PUT` | `/api/auth/yo` | Actualiza los datos del usuario de la sesión |
+| `PUT` | `/api/auth/yo/contrasena` | Cambia su contraseña |
 
 `POST /api/auth/login` recibe `{ email, contrasena }` y responde
 `{ token, usuario }`. **Es el único endpoint público**: todos los demás piden el
@@ -259,6 +261,23 @@ En cada petición el usuario se vuelve a leer de la base en lugar de confiar en 
 que dice el token: así, dar de baja o cambiarle el rol a alguien tiene efecto en
 el momento y no cuando le venza la sesión.
 
+**Perfil propio.** Los dos `PUT` van sobre el usuario de la sesión y no sobre un
+`:id`: el id no llega del cliente, así que no puede ser el de otro. No piden
+ningún rol —cualquiera con sesión gestiona su cuenta—, pero sí acotan **qué** se
+puede cambiar.
+
+`PUT /api/auth/yo` recibe `{ nombre, email, telefono }`. Es una lista blanca:
+`rolId`, `activo` y `contrasena` se descartan aunque vengan en el cuerpo. Sin
+eso, un cliente se ascendería a administrador con un `PUT` a sus propios datos.
+El email sigue siendo único (`409`).
+
+`PUT /api/auth/yo/contrasena` recibe `{ contrasenaActual, contrasenaNueva }`.
+Pide la actual porque, si no, alcanzaría un token prestado para cambiarle la
+clave al dueño y dejarlo afuera de su cuenta. Si la actual no coincide responde
+**`400`, no `401`**: la sesión sirve, lo que está mal es un dato del formulario, y
+un `401` haría que el frontend cierre la sesión por un error de tipeo. El token
+sigue valiendo después del cambio.
+
 ### Niveles de acceso
 
 Los dos roles del catálogo `Rol` son los niveles de acceso:
@@ -267,6 +286,7 @@ Los dos roles del catálogo `Rol` son los niveles de acceso:
 |---|---|---|
 | Tipos de cancha, tipos de evento, canchas, horarios | Todo | Solo consultar |
 | Usuarios y roles | Todo | Nada |
+| Su propio perfil | Sí | Sí |
 | Reservas | Todas | Solo las suyas |
 
 Un `CLIENTE` consulta canchas y turnos porque los necesita para reservar, pero no
