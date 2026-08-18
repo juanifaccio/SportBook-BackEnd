@@ -63,6 +63,7 @@ const AYER = diaRelativo(-1);
  * siembra, y borrarlo dejaría a los usuarios sin nivel de acceso.
  */
 const limpiar = async () => {
+  await prisma.evento.deleteMany();
   await prisma.reserva.deleteMany();
   await prisma.horario.deleteMany();
   await prisma.cancha.deleteMany();
@@ -109,6 +110,8 @@ const sembrar = async () => {
   const tipoCancha = await prisma.tipoCancha.create({
     data: { nombre: 'Fútbol 5', descripcion: 'Césped sintético' }
   });
+
+  const tipoEvento = await prisma.tipoEvento.create({ data: { nombre: 'Cumpleaños' } });
 
   const cancha = await prisma.cancha.create({
     data: {
@@ -174,6 +177,7 @@ const sembrar = async () => {
     otroCliente,
     inactivo,
     tipoCancha,
+    tipoEvento,
     cancha,
     canchaEnMantenimiento,
     turnoLibre,

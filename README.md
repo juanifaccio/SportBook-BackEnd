@@ -289,7 +289,8 @@ Cuerpo: `{ nombre, descripcion }`. El nombre es único.
 
 ### Tipos de evento — `/api/tipos-evento`
 
-Los mismos cinco endpoints. Cuerpo: `{ nombre }`, único.
+Los mismos cinco endpoints. Cuerpo: `{ nombre }`, único. No se puede eliminar un
+tipo que ya tiene eventos cargados (`409`).
 
 ### Canchas — `/api/canchas`
 
@@ -361,6 +362,35 @@ ese campo es obligatorio.
 **No hay `DELETE` a propósito**: cancelar no es borrar. La reserva cancelada se
 conserva como historial y su turno vuelve a la lista de libres.
 
+Cada reserva viaja con su `evento` incluido, o `null` si no tiene.
+
+### Eventos — `/api/eventos`
+
+Lo que se festeja o se juega en una reserva: un cumpleaños, un torneo, un partido
+de la liga. Es opcional y **una reserva tiene a lo sumo uno**.
+
+| Verbo | URL | Qué hace |
+|---|---|---|
+| `GET` | `/api/eventos` | Lista los eventos, del día más nuevo al más viejo |
+| `POST` | `/api/eventos` | Le carga el evento a una reserva |
+| `GET` | `/api/eventos/:id` | Obtiene uno |
+| `PUT` | `/api/eventos/:id` | Modifica uno |
+| `DELETE` | `/api/eventos/:id` | Elimina uno |
+
+Cuerpo del alta: `{ descripcion, cantidadPersonas, tipoEventoId, reservaId }`. La
+cantidad de personas tiene que ser un entero mayor a cero. El `PUT` recibe los
+mismos campos **menos `reservaId`**: mover un evento de una reserva a otra no es
+una operación del negocio, así que si viene se ignora.
+
+`GET /api/eventos` acepta el filtro `reservaId`
+(`/api/eventos?reservaId=4`). Cada evento viaja con su tipo y con la reserva
+entera —cancha, tipo de cancha y usuario— para poder identificarla en el listado.
+
+Los permisos son los de las reservas: un `ADMIN` los ve y los gestiona todos, y un
+`CLIENTE` solo los de sus propias reservas (`403` si intenta con la de otro). Una
+reserva **cancelada** no admite cargarle ni editarle el evento (`409`); borrarlo sí
+se permite, porque es limpiar un dato que ya no aplica.
+
 ### Códigos de respuesta
 
 | Código | Cuándo |
@@ -390,8 +420,9 @@ o desde JetBrains con su cliente HTTP integrado.
 ## Estado del proyecto
 
 Implementados de punta a punta: **TipoCancha**, **TipoEvento**, **Cancha**,
-**Horario** y **Usuario**, el catálogo **Rol** de solo lectura, y los casos de
-uso de **reservar una cancha** y **gestionar reservas** (reprogramar y cancelar).
+**Horario**, **Usuario** y **Evento**, el catálogo **Rol** de solo lectura, y los
+casos de uso de **reservar una cancha** y **gestionar reservas** (reprogramar y
+cancelar).
 
 Todo eso está cubierto por tests: los unitarios sobre las reglas del negocio y
 las validaciones, y los de integración sobre la API completa contra una base de

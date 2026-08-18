@@ -11,6 +11,7 @@ const horarioRoutes = require('./routes/horario.routes');
 const rolRoutes = require('./routes/rol.routes');
 const usuarioRoutes = require('./routes/usuario.routes');
 const reservaRoutes = require('./routes/reserva.routes');
+const eventoRoutes = require('./routes/evento.routes');
 
 app.use(cors());
 app.use(express.json());
@@ -27,6 +28,7 @@ app.use('/api/horarios', horarioRoutes);
 app.use('/api/roles', rolRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/reservas', reservaRoutes);
+app.use('/api/eventos', eventoRoutes);
 
 app.get('/', (req, res) => {
   res.json({ mensaje: 'SportBook Backend funcionando' });

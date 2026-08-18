@@ -193,3 +193,105 @@ Authorization: Bearer {{login.response.body.token}}
 ### Cancelar una reserva inexistente (404)
 PUT http://localhost:3000/api/reservas/9999/cancelar
 Authorization: Bearer {{login.response.body.token}}
+
+##############################
+# Eventos
+##############################
+
+### Listar todos los eventos
+# Un ADMIN los ve todos; un CLIENTE, solo los de sus propias reservas.
+GET http://localhost:3000/api/eventos
+Authorization: Bearer {{login.response.body.token}}
+
+### Listar el evento de una reserva
+GET http://localhost:3000/api/eventos?reservaId=1
+Authorization: Bearer {{login.response.body.token}}
+
+### Listar con un reservaId que no es un número (400)
+GET http://localhost:3000/api/eventos?reservaId=pepe
+Authorization: Bearer {{login.response.body.token}}
+
+### Cargarle el evento a una reserva
+POST http://localhost:3000/api/eventos
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "descripcion": "Cumpleaños de 15",
+    "cantidadPersonas": 40,
+    "tipoEventoId": 1,
+    "reservaId": 1
+}
+
+### Cargarle un segundo evento a la misma reserva (409)
+# Una reserva tiene a lo sumo un evento.
+POST http://localhost:3000/api/eventos
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "descripcion": "Otro festejo",
+    "cantidadPersonas": 10,
+    "tipoEventoId": 1,
+    "reservaId": 1
+}
+
+### Crear con una cantidad de personas inválida (400)
+POST http://localhost:3000/api/eventos
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "descripcion": "Partido",
+    "cantidadPersonas": 0,
+    "tipoEventoId": 1,
+    "reservaId": 2
+}
+
+### Crear con un tipo de evento que no existe (400)
+POST http://localhost:3000/api/eventos
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "descripcion": "Partido",
+    "cantidadPersonas": 10,
+    "tipoEventoId": 9999,
+    "reservaId": 2
+}
+
+### Obtener un evento
+GET http://localhost:3000/api/eventos/1
+Authorization: Bearer {{login.response.body.token}}
+
+### Modificar el evento
+# El reservaId no entra: mover un evento de una reserva a otra no es una
+# operación del negocio, así que si viene se ignora.
+PUT http://localhost:3000/api/eventos/1
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "descripcion": "Cumpleaños de 18",
+    "cantidadPersonas": 25,
+    "tipoEventoId": 1
+}
+
+### Modificar un evento inexistente (404)
+PUT http://localhost:3000/api/eventos/9999
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "descripcion": "Cumpleaños de 18",
+    "cantidadPersonas": 25,
+    "tipoEventoId": 1
+}
+
+### Eliminar un tipo de evento que tiene eventos asociados (409)
+DELETE http://localhost:3000/api/tipos-evento/1
+Authorization: Bearer {{login.response.body.token}}
+
+### Eliminar el evento
+DELETE http://localhost:3000/api/eventos/1
+Authorization: Bearer {{login.response.body.token}}
