@@ -1,8 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 
-const { puerto } = require('./config/env');
-
 const app = express();
 
 const authRoutes = require('./routes/auth.routes');
@@ -34,6 +32,7 @@ app.get('/', (req, res) => {
   res.json({ mensaje: 'SportBook Backend funcionando' });
 });
 
-app.listen(puerto, () => {
-  console.log(`Servidor ejecutándose en http://localhost:${puerto}`);
-});
+// Este archivo arma la aplicación pero no la pone a escuchar: de eso se ocupa
+// `server.js`. Separarlos es lo que permite que los tests de integración le
+// manden requests a la app sin ocupar un puerto ni dejar un servidor prendido.
+module.exports = app;

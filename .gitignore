@@ -3,3 +3,6 @@ node_modules
 .env
 
 /src/generated/prisma
+
+# Configuración de los tests de integración (ver .env.test.example)
+.env.test

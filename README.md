@@ -21,6 +21,9 @@ través de esta API, en JSON. El frontend vive en su propio repositorio,
 - [bcryptjs](https://www.npmjs.com/package/bcryptjs) para hashear contraseñas
 - [jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken) para los tokens de
   sesión (JWT)
+- [`node:test`](https://nodejs.org/api/test.html), el runner que trae Node, para
+  los tests, con [supertest](https://www.npmjs.com/package/supertest) para
+  pedirle a la API por HTTP
 
 ## Requisitos previos
 
@@ -126,6 +129,66 @@ curl http://localhost:3000
 
 Debería responder `{"mensaje":"SportBook Backend funcionando"}`.
 
+## Tests
+
+Hay dos suites, con el runner que trae Node (`node:test`). Se separan porque
+necesitan cosas distintas: una corre en cualquier lado y la otra necesita una
+base de datos.
+
+### Unitarios
+
+Cubren las reglas del negocio y las validaciones: el cálculo del precio de una
+reserva, si un turno ya empezó, los formatos de fecha y hora, la validación de
+cada formulario, la lectura de las variables de ambiente y el middleware de
+sesión. No tocan la base ni levantan el servidor, así que no hace falta
+configurar nada:
+
+```bash
+npm test
+```
+
+### Integración
+
+Le pegan por HTTP a la API entera —rutas, middlewares, controladores y Prisma
+contra MySQL— para comprobar lo que solo se ve al juntar las piezas: que sin
+token no se entra a ningún lado, que un cliente no llega a la reserva de otro,
+que dos personas no pueden quedarse con el mismo turno, y que cancelar lo
+devuelve a la lista de libres.
+
+Necesitan **una base aparte de la de desarrollo**, porque vacían todas las tablas
+antes de cada suite. Se configura una sola vez:
+
+```bash
+cp .env.test.example .env.test
+```
+
+Completá el `DATABASE_URL` de ese archivo con las credenciales de tu MySQL y un
+nombre de base **terminado en `_test`** (por ejemplo `sportsbook_test`). Ese
+sufijo no es una convención decorativa: `npm run test:preparar` y los propios
+tests se niegan a correr si la base no lo tiene, para que un archivo mal
+configurado no se lleve puestos tus datos de desarrollo.
+
+Después, crear la base y aplicarle las migraciones:
+
+```bash
+npm run test:preparar
+```
+
+Y ya se pueden correr:
+
+```bash
+npm run test:integracion
+```
+
+`npm run test:preparar` hay que repetirlo cada vez que se agregue una migración
+nueva. Para correr las dos suites de una: `npm run test:todo`.
+
+> Si alguna vez matás una corrida a la fuerza (`kill -9`, cerrar la terminal de
+> golpe), MySQL conserva abiertas las conexiones del proceso muerto junto con los
+> locks que tuvieran, y la corrida siguiente se queda esperándolos. Se resuelve
+> solo en un rato, o cerrando esas conexiones a mano. Cortando con `Ctrl+C` no
+> pasa: el proceso alcanza a cerrarlas.
+
 ## Scripts disponibles
 
 | Comando | Qué hace |
@@ -136,7 +199,10 @@ Debería responder `{"mensaje":"SportBook Backend funcionando"}`.
 | `npm run prisma:generate` | Regenera el cliente de Prisma (tras editar `schema.prisma`) |
 | `npm run prisma:studio` | Abre Prisma Studio para inspeccionar los datos en el navegador |
 | `npm run seed` | Crea el administrador inicial a partir del `.env` |
-| `npm test` | Todavía sin implementar (tarea #17 del backlog) |
+| `npm test` | Corre los tests unitarios (no necesita base de datos) |
+| `npm run test:preparar` | Crea la base de pruebas y le aplica las migraciones |
+| `npm run test:integracion` | Corre los tests de integración contra la base de pruebas |
+| `npm run test:todo` | Corre las dos suites, una después de la otra |
 
 ## Estructura del proyecto
 
@@ -145,12 +211,14 @@ controlador y del controlador a Prisma, sin saltear niveles.
 
 ```
 .env.example          plantilla de configuración: copiar como .env
+.env.test.example     plantilla de los tests de integración: copiar como .env.test
 prisma/
   schema.prisma       modelo de datos: única fuente de verdad del esquema
   migrations/         historial versionado de cambios de la base
   seed.js             crea el administrador inicial
 src/
-  app.js              punto de entrada: middlewares y montaje de cada recurso
+  server.js           punto de entrada: pone la aplicación a escuchar
+  app.js              arma la aplicación: middlewares y montaje de cada recurso
   config/env.js       lee y valida las variables de ambiente
   config/prisma.js    instancia única de PrismaClient (acceso a la base)
   config/roles.js     nombres de los niveles de acceso (ADMIN, CLIENTE)
@@ -158,6 +226,10 @@ src/
   routes/             mapea verbo + URL a la función del controlador
   controllers/        valida la entrada, opera y arma la respuesta JSON
   generated/prisma/   cliente generado por Prisma — no se edita ni se versiona
+tests/
+  unitarios/          reglas de negocio y validaciones, sin base ni servidor
+  integracion/        peticiones HTTP contra la API entera y la base real
+  apoyo/              ambiente de los tests, datos sembrados y dobles de Express
 ```
 
 ## API
@@ -320,6 +392,11 @@ o desde JetBrains con su cliente HTTP integrado.
 Implementados de punta a punta: **TipoCancha**, **TipoEvento**, **Cancha**,
 **Horario** y **Usuario**, el catálogo **Rol** de solo lectura, y los casos de
 uso de **reservar una cancha** y **gestionar reservas** (reprogramar y cancelar).
+
+Todo eso está cubierto por tests: los unitarios sobre las reglas del negocio y
+las validaciones, y los de integración sobre la API completa contra una base de
+MySQL, incluidos los niveles de acceso y las reglas de quién puede tocar la
+reserva de quién.
 
 El seguimiento de tareas y el detalle de lo que falta se llevan en el repositorio
 de documentación del TP, en `docs/backlog.md`.
