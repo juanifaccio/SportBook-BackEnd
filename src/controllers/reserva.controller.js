@@ -25,10 +25,16 @@ const FORMATO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const TURNO_OCUPADO = 'TURNO_OCUPADO';
 
 /** Estado con el que nace una reserva. Ver el comentario del enum en el schema. */
-const ESTADO_INICIAL = 'CONFIRMADA';
+const ESTADO_INICIAL = 'PENDIENTE';
+
+/** Estado al que llega una reserva ya paga. */
+const ESTADO_CONFIRMADA = 'CONFIRMADA';
 
 /** Estado al que llega una reserva cancelada. */
 const ESTADO_CANCELADA = 'CANCELADA';
+
+/** Estado de un pago que dejó de contar. Ver el enum `EstadoPago` del schema. */
+const PAGO_ANULADO = 'ANULADO';
 
 /** Valores que acepta el enum `EstadoReserva`, para validar el filtro del listado. */
 const ESTADOS = ['PENDIENTE', 'CONFIRMADA', 'CANCELADA'];
@@ -143,7 +149,15 @@ const aRespuesta = (reserva) => ({
     horario: reserva.horario && {
         ...reserva.horario,
         fecha: reserva.horario.fecha.toISOString().slice(0, 10)
-    }
+    },
+    // Los pagos incluidos traen su propio Decimal y su propia fecha DATE. Se
+    // adaptan acá y no reutilizando el `aRespuesta` de `pago.controller.js`
+    // porque ese ya depende de este: importarlo sería un `require` circular.
+    pagos: reserva.pagos?.map((pago) => ({
+        ...pago,
+        monto: Number(pago.monto),
+        fecha: pago.fecha.toISOString().slice(0, 10)
+    }))
 });
 
 /**
@@ -167,7 +181,40 @@ const RELACIONES = {
         include: {
             tipoEvento: true
         }
+    },
+    pagos: true
+};
+
+/**
+ * Lo que falta pagar de una reserva: su precio total menos los pagos que no
+ * están anulados.
+ *
+ * Vive acá y no en `pago.controller.js` porque de esto depende el estado de la
+ * reserva, que es asunto de la reserva. Al revés, además, sería un `require`
+ * circular: el controller de pagos ya depende de este.
+ */
+const saldoDe = (precioTotal, pagos = []) => {
+    const pagado = pagos
+        .filter((pago) => pago.estado !== PAGO_ANULADO)
+        .reduce((total, pago) => total + Number(pago.monto), 0);
+
+    return Number(precioTotal) - pagado;
+};
+
+/**
+ * El estado que le corresponde a una reserva según lo que se le haya pagado.
+ *
+ * Una reserva cancelada no vuelve sola: cancelar es una decisión, no algo que se
+ * derive de la plata. El saldo se compara contra cero y no contra el total
+ * porque puede quedar negativo si la reserva se reprogramó a un turno más barato
+ * después de estar paga.
+ */
+const estadoSegunPagos = (reserva, pagos) => {
+    if (reserva.estado === ESTADO_CANCELADA) {
+        return ESTADO_CANCELADA;
     }
+
+    return saldoDe(reserva.precioTotal, pagos) <= 0 ? ESTADO_CONFIRMADA : ESTADO_INICIAL;
 };
 
 /**
@@ -534,11 +581,31 @@ const actualizarReserva = async (req, res) => {
                 }
             });
 
-            return tx.reserva.update({
+            const conNuevoTurno = await tx.reserva.update({
                 where: {
                     id: reserva.id
                 },
                 data: datosDelTurno(horario),
+                include: RELACIONES
+            });
+
+            // Reprogramar copia el precio del turno nuevo, así que lo que ya se
+            // pagó puede dejar de alcanzar: una reserva paga que se mueve a un
+            // turno más caro vuelve a PENDIENTE. Al revés no hay nada que
+            // devolver, y el saldo negativo se da por cubierto.
+            const estado = estadoSegunPagos(conNuevoTurno, conNuevoTurno.pagos);
+
+            if (estado === conNuevoTurno.estado) {
+                return conNuevoTurno;
+            }
+
+            return tx.reserva.update({
+                where: {
+                    id: reserva.id
+                },
+                data: {
+                    estado: estado
+                },
                 include: RELACIONES
             });
         });
@@ -627,5 +694,7 @@ module.exports = {
     validarTurno,
     datosDelTurno,
     armarFiltro,
+    saldoDe,
+    estadoSegunPagos,
     aRespuesta
 };

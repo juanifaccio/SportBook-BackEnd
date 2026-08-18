@@ -342,3 +342,88 @@ Authorization: Bearer {{login.response.body.token}}
 ### Eliminar el evento
 DELETE http://localhost:3000/api/eventos/1
 Authorization: Bearer {{login.response.body.token}}
+
+##############################
+# Pagos
+##############################
+
+### Listar todos los pagos
+# Un ADMIN los ve todos; un CLIENTE, solo los de sus propias reservas.
+GET http://localhost:3000/api/pagos
+Authorization: Bearer {{login.response.body.token}}
+
+### Listar los pagos de una reserva
+GET http://localhost:3000/api/pagos?reservaId=1
+Authorization: Bearer {{login.response.body.token}}
+
+### Listar solo los anulados
+GET http://localhost:3000/api/pagos?estado=ANULADO
+Authorization: Bearer {{login.response.body.token}}
+
+### Registrar una seña (pago parcial)
+# La fecha y el estado los pone el servidor. La reserva sigue PENDIENTE porque
+# lo pagado todavía no cubre el precio total.
+POST http://localhost:3000/api/pagos
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "reservaId": 1,
+    "monto": 4000,
+    "metodo": "EFECTIVO"
+}
+
+### Cobrar el resto: la reserva pasa a CONFIRMADA
+POST http://localhost:3000/api/pagos
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "reservaId": 1,
+    "monto": 4000,
+    "metodo": "TARJETA"
+}
+
+### Cobrar de más que el saldo (409)
+POST http://localhost:3000/api/pagos
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "reservaId": 1,
+    "monto": 999999,
+    "metodo": "EFECTIVO"
+}
+
+### Registrar con un método que no existe (400)
+POST http://localhost:3000/api/pagos
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "reservaId": 1,
+    "monto": 1000,
+    "metodo": "TRUEQUE"
+}
+
+### Obtener un pago
+GET http://localhost:3000/api/pagos/1
+Authorization: Bearer {{login.response.body.token}}
+
+### Corregir el método con el que se cobró
+# Es lo único editable: el monto se anula y se vuelve a registrar.
+PUT http://localhost:3000/api/pagos/1
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "metodo": "TRANSFERENCIA"
+}
+
+### Anular el pago: la reserva vuelve a PENDIENTE
+PUT http://localhost:3000/api/pagos/1/anular
+Authorization: Bearer {{login.response.body.token}}
+
+### Anularlo otra vez (409)
+PUT http://localhost:3000/api/pagos/1/anular
+Authorization: Bearer {{login.response.body.token}}

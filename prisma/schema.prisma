@@ -108,10 +108,10 @@ model TipoEvento {
   eventos Evento[]
 }
 
-/// Una reserva nace CONFIRMADA porque todavía no hay pagos: cuando exista Pago,
-/// va a nacer PENDIENTE y el pago la va a confirmar. El estado ya está en el
-/// enum para no tener que migrarlo entonces. CANCELADA se conserva en vez de
-/// borrar la fila, así el turno queda con su historial.
+/// Una reserva nace PENDIENTE y la confirman sus pagos: pasa a CONFIRMADA recién
+/// cuando la suma de los que no están anulados cubre el precio total. Anular un
+/// pago la devuelve a PENDIENTE. CANCELADA se conserva en vez de borrar la fila,
+/// así el turno queda con su historial.
 enum EstadoReserva {
   PENDIENTE
   CONFIRMADA
@@ -149,6 +149,44 @@ model Reserva {
   // La mayoría de las reservas son un partido y nada más, así que el evento es
   // opcional: `0..1` del lado de la reserva.
   evento Evento?
+
+  pagos Pago[]
+}
+
+/// Cómo se cobró. Es un enum y no un texto libre para que la base rechace
+/// cualquier otro valor, igual que el estado de la cancha.
+enum MetodoPago {
+  EFECTIVO
+  TARJETA
+  TRANSFERENCIA
+}
+
+/// Un pago no se borra: se anula. La fila se conserva como historial —es un
+/// registro de plata— y un pago anulado deja de contar para el total pagado, así
+/// que la reserva puede volver a PENDIENTE.
+enum EstadoPago {
+  REGISTRADO
+  ANULADO
+}
+
+/// Lo que se cobró por una reserva.
+///
+/// Es `N:1` y no `1:1` porque la reserva admite pagos parciales: se paga una seña
+/// y el resto después. La reserva pasa a CONFIRMADA recién cuando la suma de sus
+/// pagos no anulados cubre el precio total.
+model Pago {
+  id     Int        @id @default(autoincrement())
+  // Decimal por el mismo motivo que los otros importes: es plata, y se suma
+  // contra el total de la reserva.
+  monto  Decimal    @db.Decimal(10, 2)
+  // El día en que se cobró. DATE como el resto de las fechas de la API, para que
+  // el huso horario no lo corra de día; lo pone el servidor, no el cliente.
+  fecha  DateTime   @db.Date
+  metodo MetodoPago
+  estado EstadoPago
+
+  reservaId Int
+  reserva   Reserva @relation(fields: [reservaId], references: [id])
 }
 
 /// Lo que se festeja o se juega en una reserva: un cumpleaños, un torneo, un
