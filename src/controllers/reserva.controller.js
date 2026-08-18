@@ -602,10 +602,21 @@ const cancelarReserva = async (req, res) => {
     }
 };
 
+// Además de los handlers se exportan las funciones puras del controller: no
+// tocan la base ni el request, son las reglas del negocio en su forma más
+// chica, y exportarlas es lo que permite cubrirlas con tests unitarios sin
+// levantar el servidor.
 module.exports = {
     listarReservas,
     crearReserva,
     obtenerReserva,
     actualizarReserva,
-    cancelarReserva
+    cancelarReserva,
+    minutosDe,
+    precioDe,
+    yaEmpezo,
+    validarTurno,
+    datosDelTurno,
+    armarFiltro,
+    aRespuesta
 };

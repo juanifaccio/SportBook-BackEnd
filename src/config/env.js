@@ -57,6 +57,15 @@ const leerBaseDeDatos = () => {
     );
   }
 
+  // Sin esto, un "localhost:3306" sin el esquema adelante pasa la validación:
+  // `URL` lo lee como protocolo "localhost:" con la ruta "3306", y la conexión
+  // termina armándose con datos que no significan nada.
+  if (url.protocol !== 'mysql:') {
+    throw new Error(
+      `DATABASE_URL tiene que empezar con mysql://; llegó "${url.protocol}//".`
+    );
+  }
+
   const base = decodeURIComponent(url.pathname.replace(/^\//, ''));
   if (!base) {
     throw new Error('DATABASE_URL no indica el nombre de la base de datos.');

@@ -275,10 +275,16 @@ const eliminarCancha = async (req, res) => {
     }
 };
 
+// Además de los handlers se exportan las funciones puras del controller: no
+// tocan la base ni el request, son las reglas del negocio en su forma más
+// chica, y exportarlas es lo que permite cubrirlas con tests unitarios sin
+// levantar el servidor.
 module.exports = {
     listarCanchas,
     crearCancha,
     obtenerCancha,
     actualizarCancha,
-    eliminarCancha
+    eliminarCancha,
+    validarDatos,
+    aRespuesta
 };
