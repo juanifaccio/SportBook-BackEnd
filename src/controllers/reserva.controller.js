@@ -150,6 +150,10 @@ const aRespuesta = (reserva) => ({
  * Relaciones que acompañan a la reserva en todas las respuestas. La cancha viaja
  * con su tipo porque el detalle de una reserva lo muestra, y pedirlo aparte
  * sería una consulta más por cada reserva que se abre.
+ *
+ * El evento va por el mismo motivo: el detalle lo muestra y el alta de un evento
+ * necesita saber qué reservas todavía no tienen uno. Viene `null` en la mayoría
+ * de las reservas, que son un partido y nada más.
  */
 const RELACIONES = {
     usuario: true,
@@ -158,7 +162,12 @@ const RELACIONES = {
             tipoCancha: true
         }
     },
-    horario: true
+    horario: true,
+    evento: {
+        include: {
+            tipoEvento: true
+        }
+    }
 };
 
 /**

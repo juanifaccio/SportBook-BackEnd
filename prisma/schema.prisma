@@ -12,7 +12,7 @@ datasource db {
 }
 
 model TipoCancha {
-  id Int @id @default(autoincrement())
+  id          Int    @id @default(autoincrement())
   // Es un catálogo: dos filas "Fútbol 5" partirían las canchas entre dos ids
   // que significan lo mismo, y el listado filtrado por tipo mostraría la opción
   // repetida con resultados incompletos.
@@ -31,7 +31,7 @@ enum EstadoCancha {
 }
 
 model Cancha {
-  id Int @id @default(autoincrement())
+  id            Int          @id @default(autoincrement())
   // El nombre es cómo se identifica la cancha en el complejo ("Cancha 1"):
   // repetirlo haría que el usuario no pueda saber cuál está reservando.
   nombre        String       @unique
@@ -48,7 +48,7 @@ model Cancha {
 }
 
 model Horario {
-  id Int @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   // La fecha es un día del calendario, sin hora: guardarla como DATE evita que
   // el huso horario corra el turno al día anterior o al siguiente.
   fecha      DateTime @db.Date
@@ -71,7 +71,7 @@ model Horario {
 }
 
 model Rol {
-  id Int @id @default(autoincrement())
+  id     Int    @id @default(autoincrement())
   // Es un catálogo: dos filas "ADMIN" partirían a los usuarios entre dos ids que
   // significan el mismo nivel de acceso.
   nombre String @unique
@@ -80,8 +80,8 @@ model Rol {
 }
 
 model Usuario {
-  id Int @id @default(autoincrement())
-  nombre String
+  id         Int     @id @default(autoincrement())
+  nombre     String
   // El email es con lo que el usuario se va a identificar al iniciar sesión:
   // repetirlo haría ambigua la autenticación.
   email      String  @unique
@@ -104,6 +104,8 @@ model TipoEvento {
   // Es un catálogo: un nombre repetido no clasifica nada y partiría los eventos
   // entre dos ids que significan lo mismo.
   nombre String @unique
+
+  eventos Evento[]
 }
 
 /// Una reserva nace CONFIRMADA porque todavía no hay pagos: cuando exista Pago,
@@ -117,7 +119,7 @@ enum EstadoReserva {
 }
 
 model Reserva {
-  id Int @id @default(autoincrement())
+  id          Int           @id @default(autoincrement())
   // La fecha y las horas se copian del turno con los mismos tipos que Horario
   // (DATE para que el huso no corra el día, "HH:mm" para que ordenen como el
   // reloj). Son una copia y no una lectura de la relación a propósito: la
@@ -143,4 +145,29 @@ model Reserva {
   // marcar el turno como ocupado dentro de la misma transacción que la crea.
   horarioId Int
   horario   Horario @relation(fields: [horarioId], references: [id])
+
+  // La mayoría de las reservas son un partido y nada más, así que el evento es
+  // opcional: `0..1` del lado de la reserva.
+  evento Evento?
+}
+
+/// Lo que se festeja o se juega en una reserva: un cumpleaños, un torneo, un
+/// partido de la liga. Es un dato del cliente —qué viene a hacer—, no del
+/// complejo, y por eso cuelga de la reserva y no del turno: el mismo turno de
+/// las 20:00 sirve para un cumpleaños o para un partido según quién lo reserve.
+model Evento {
+  id               Int    @id @default(autoincrement())
+  descripcion      String
+  // Cuánta gente va. Es del evento y no de la cancha: la misma cancha admite un
+  // partido de diez y un cumpleaños de cuarenta.
+  cantidadPersonas Int
+
+  tipoEventoId Int
+  tipoEvento   TipoEvento @relation(fields: [tipoEventoId], references: [id])
+
+  // El @unique es lo que hace el 1:0..1 del modelo de dominio: una reserva tiene
+  // a lo sumo un evento. `reservaId` es obligatorio y no opcional porque un
+  // evento sin reserva no significa nada: es el festejo de *esa* reserva.
+  reservaId Int     @unique
+  reserva   Reserva @relation(fields: [reservaId], references: [id])
 }
