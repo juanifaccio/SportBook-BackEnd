@@ -1,7 +1,12 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { validarDatos, aRespuesta } = require('../../src/controllers/usuario.controller');
+const {
+  validarDatos,
+  validarPerfil,
+  validarCambioDeContrasena,
+  aRespuesta
+} = require('../../src/controllers/usuario.controller');
 
 const ALTA = false;
 const EDICION = true;
@@ -98,6 +103,106 @@ describe('usuario — validación', () => {
     // es el que la guarda.
     it('devuelve la contraseña sin hashear', () => {
       assert.equal(validarDatos(cuerpo(), ALTA).datos.contrasena, 'unaClave123');
+    });
+  });
+
+  describe('validarPerfil', () => {
+    const perfil = (cambios = {}) => ({
+      nombre: 'Lucía Gómez',
+      email: 'lucia.gomez@ejemplo.com',
+      telefono: '341 555-9876',
+      ...cambios
+    });
+
+    it('acepta un perfil bien formado', () => {
+      assert.deepEqual(validarPerfil(perfil()), {
+        datos: {
+          nombre: 'Lucía Gómez',
+          email: 'lucia.gomez@ejemplo.com',
+          telefono: '341 555-9876'
+        }
+      });
+    });
+
+    // Es lo que impide que un cliente se ascienda a administrador con un PUT a
+    // sus propios datos, o que se reactive una cuenta dada de baja.
+    it('descarta el rol y el activo aunque vengan en el cuerpo', () => {
+      const { datos } = validarPerfil(perfil({ rolId: 1, activo: true }));
+
+      assert.equal(datos.rolId, undefined);
+      assert.equal(datos.activo, undefined);
+    });
+
+    // La contraseña se cambia por su propio endpoint, que además pide la actual.
+    it('descarta la contraseña aunque venga en el cuerpo', () => {
+      assert.equal(validarPerfil(perfil({ contrasena: 'otraClave123' })).datos.contrasena, undefined);
+    });
+
+    it('normaliza el email a minúsculas', () => {
+      assert.equal(validarPerfil(perfil({ email: 'Lucia.Gomez@Ejemplo.com' })).datos.email, 'lucia.gomez@ejemplo.com');
+    });
+
+    // Las mismas reglas que el ABM: el mismo dato mal escrito se queja igual en
+    // las dos pantallas.
+    it('rechaza el perfil sin nombre', () => {
+      assert.match(validarPerfil(perfil({ nombre: '' })).mensaje, /nombre/);
+    });
+
+    it('rechaza un email sin arroba o sin dominio', () => {
+      assert.match(validarPerfil(perfil({ email: 'lucia' })).mensaje, /email/);
+      assert.match(validarPerfil(perfil({ email: 'lucia@ejemplo' })).mensaje, /email/);
+    });
+
+    it('rechaza un teléfono con letras o demasiado corto', () => {
+      assert.match(validarPerfil(perfil({ telefono: 'no tengo' })).mensaje, /teléfono/);
+      assert.match(validarPerfil(perfil({ telefono: '123' })).mensaje, /teléfono/);
+    });
+  });
+
+  describe('validarCambioDeContrasena', () => {
+    const cambio = (cambios = {}) => ({
+      contrasenaActual: 'unaClave123',
+      contrasenaNueva: 'otraClave456',
+      ...cambios
+    });
+
+    it('acepta un cambio bien formado', () => {
+      assert.deepEqual(validarCambioDeContrasena(cambio()), {
+        datos: { actual: 'unaClave123', nueva: 'otraClave456' }
+      });
+    });
+
+    // Sin la actual, cualquiera con un token prestado le cambia la clave al
+    // dueño y lo deja afuera de su propia cuenta.
+    it('exige la contraseña actual', () => {
+      assert.match(validarCambioDeContrasena(cambio({ contrasenaActual: '' })).mensaje, /actual/);
+    });
+
+    it('exige la contraseña nueva', () => {
+      assert.match(validarCambioDeContrasena(cambio({ contrasenaNueva: '' })).mensaje, /nueva/);
+    });
+
+    it('rechaza una contraseña nueva corta', () => {
+      assert.match(validarCambioDeContrasena(cambio({ contrasenaNueva: 'corta' })).mensaje, /8 caracteres/);
+    });
+
+    it('acepta una contraseña nueva de exactamente 8 caracteres', () => {
+      assert.equal(validarCambioDeContrasena(cambio({ contrasenaNueva: '12345678' })).mensaje, undefined);
+    });
+
+    // Cambiarla por la misma no es un cambio: el usuario se iría creyendo que
+    // hizo algo.
+    it('rechaza una contraseña nueva igual a la actual', () => {
+      assert.match(
+        validarCambioDeContrasena(cambio({ contrasenaNueva: 'unaClave123' })).mensaje,
+        /distinta/
+      );
+    });
+
+    it('no recorta las contraseñas', () => {
+      const { datos } = validarCambioDeContrasena(cambio({ contrasenaNueva: '  con espacios  ' }));
+
+      assert.equal(datos.nueva, '  con espacios  ');
     });
   });
 

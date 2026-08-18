@@ -107,6 +107,74 @@ const validarDatos = (body, esEdicion) => {
     return { datos };
 };
 
+/**
+ * Valida los campos que un usuario puede cambiarse a sí mismo desde su perfil.
+ *
+ * Es una lista blanca y no un `validarDatos` con menos campos: `rol` y `activo`
+ * quedan afuera **a propósito**. Si el endpoint del perfil aceptara el cuerpo
+ * entero, un cliente se ascendería a administrador con un `PUT` a sus propios
+ * datos, o se reactivaría una cuenta dada de baja.
+ *
+ * La contraseña tampoco entra: se cambia por su propio endpoint, que además pide
+ * la actual.
+ *
+ * Vive acá y no en `auth.controller.js` —donde están los handlers del perfil—
+ * para que las reglas de los campos de Usuario estén todas en un solo lugar: el
+ * mismo email mal escrito tiene que quejarse igual en el ABM y en el perfil.
+ */
+const validarPerfil = (body) => {
+    const nombre = normalizar(body.nombre);
+    const email = normalizar(body.email).toLowerCase();
+    const telefono = normalizar(body.telefono);
+
+    if (!nombre) {
+        return { mensaje: 'El nombre es obligatorio' };
+    }
+
+    if (!FORMATO_EMAIL.test(email)) {
+        return { mensaje: 'El email es obligatorio y debe tener un formato válido' };
+    }
+
+    if (!FORMATO_TELEFONO.test(telefono)) {
+        return { mensaje: 'El teléfono es obligatorio y debe tener entre 6 y 20 caracteres' };
+    }
+
+    return { datos: { nombre, email, telefono } };
+};
+
+/**
+ * Valida el cambio de contraseña del propio usuario.
+ *
+ * Pide la actual además de la nueva: sin eso, cualquiera que consiga un token
+ * prestado le cambia la clave al dueño y lo deja afuera de su propia cuenta.
+ * Comprobar que la actual sea la correcta es cosa del handler, que es el que
+ * tiene el hash.
+ */
+const validarCambioDeContrasena = (body) => {
+    const actual = typeof body.contrasenaActual === 'string' ? body.contrasenaActual : '';
+    const nueva = typeof body.contrasenaNueva === 'string' ? body.contrasenaNueva : '';
+
+    if (!actual) {
+        return { mensaje: 'La contraseña actual es obligatoria' };
+    }
+
+    if (!nueva) {
+        return { mensaje: 'La contraseña nueva es obligatoria' };
+    }
+
+    if (nueva.length < LARGO_MINIMO_CONTRASENA) {
+        return {
+            mensaje: `La contraseña debe tener al menos ${LARGO_MINIMO_CONTRASENA} caracteres`
+        };
+    }
+
+    if (nueva === actual) {
+        return { mensaje: 'La contraseña nueva tiene que ser distinta de la actual' };
+    }
+
+    return { datos: { actual, nueva } };
+};
+
 const listarUsuarios = async (req, res) => {
     try {
         // Se incluye el rol para que el listado del frontend pueda mostrar su
@@ -344,5 +412,8 @@ module.exports = {
     actualizarUsuario,
     eliminarUsuario,
     validarDatos,
-    aRespuesta
+    validarPerfil,
+    validarCambioDeContrasena,
+    aRespuesta,
+    RONDAS_HASH
 };
