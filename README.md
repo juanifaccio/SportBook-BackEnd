@@ -288,6 +288,7 @@ Los dos roles del catálogo `Rol` son los niveles de acceso:
 | Usuarios y roles | Todo | Nada |
 | Su propio perfil | Sí | Sí |
 | Reservas | Todas | Solo las suyas |
+| Pagos | Todo | Solo ve los de sus reservas |
 
 Un `CLIENTE` consulta canchas y turnos porque los necesita para reservar, pero no
 los administra. Sus reservas son suyas: el listado le devuelve solamente las
@@ -382,7 +383,10 @@ ese campo es obligatorio.
 **No hay `DELETE` a propósito**: cancelar no es borrar. La reserva cancelada se
 conserva como historial y su turno vuelve a la lista de libres.
 
-Cada reserva viaja con su `evento` incluido, o `null` si no tiene.
+Cada reserva viaja con su `evento` incluido (o `null`) y con sus `pagos`.
+
+Una reserva **nace `PENDIENTE`** y la confirman sus pagos: pasa a `CONFIRMADA`
+cuando la suma de los que no están anulados cubre el precio total. Ver Pagos.
 
 ### Eventos — `/api/eventos`
 
@@ -410,6 +414,45 @@ Los permisos son los de las reservas: un `ADMIN` los ve y los gestiona todos, y 
 `CLIENTE` solo los de sus propias reservas (`403` si intenta con la de otro). Una
 reserva **cancelada** no admite cargarle ni editarle el evento (`409`); borrarlo sí
 se permite, porque es limpiar un dato que ya no aplica.
+
+### Pagos — `/api/pagos`
+
+Lo que se cobró por una reserva. Es `N:1` y no `1:1`: la reserva admite **pagos
+parciales**, así que se puede cobrar una seña y el resto después.
+
+| Verbo | URL | Qué hace |
+|---|---|---|
+| `GET` | `/api/pagos` | Lista los pagos, del más nuevo al más viejo |
+| `POST` | `/api/pagos` | Registra el cobro de una reserva |
+| `GET` | `/api/pagos/:id` | Obtiene uno |
+| `PUT` | `/api/pagos/:id` | Corrige el método con el que se cobró |
+| `PUT` | `/api/pagos/:id/anular` | Anula el pago y recalcula la reserva |
+
+Cuerpo del alta: `{ reservaId, monto, metodo }`, donde `metodo` es `EFECTIVO`,
+`TARJETA` o `TRANSFERENCIA`. La **fecha y el estado los pone el servidor**: un
+pago se registra el día en que se cobra y nace `REGISTRADO`.
+
+El `PUT` recibe solo `{ metodo }`. El monto de un pago no se edita —para eso se
+anula y se registra el correcto— y la reserva tampoco, porque un pago no se muda.
+
+`GET /api/pagos` acepta los filtros `reservaId` y `estado`, combinables.
+
+**El estado de la reserva se deriva de sus pagos.** Registrar o anular uno lo
+recalcula dentro de la misma transacción: si lo pagado cubre el precio total, la
+reserva queda `CONFIRMADA`; si no, `PENDIENTE`. Una reserva `CANCELADA` no vuelve
+sola —cancelar es una decisión, no algo que se derive de la plata— y tampoco
+admite pagos nuevos (`409`). Reprogramar copia el precio del turno nuevo, así que
+una reserva paga que se mueve a un turno más caro vuelve a `PENDIENTE`.
+
+Un monto que supere el saldo se rechaza con `409`: cobrar de más dejaría un saldo
+negativo que el sistema no sabe devolver.
+
+**No hay `DELETE` a propósito**, por el mismo motivo que en reservas: un pago es
+un registro de plata y se conserva como historial. Anular no es borrar.
+
+Los permisos están partidos: **registrar, corregir y anular son del `ADMIN`** —la
+plata la cobra el complejo, no la declara el cliente—, y la lectura va por dueño,
+como en reservas.
 
 ### Códigos de respuesta
 
@@ -440,9 +483,9 @@ o desde JetBrains con su cliente HTTP integrado.
 ## Estado del proyecto
 
 Implementados de punta a punta: **TipoCancha**, **TipoEvento**, **Cancha**,
-**Horario**, **Usuario** y **Evento**, el catálogo **Rol** de solo lectura, y los
-casos de uso de **reservar una cancha** y **gestionar reservas** (reprogramar y
-cancelar).
+**Horario**, **Usuario**, **Evento** y **Pago**, el catálogo **Rol** de solo
+lectura, y los casos de uso de **reservar una cancha**, **gestionar reservas**
+(reprogramar y cancelar) y **registrar el pago de una reserva**.
 
 Todo eso está cubierto por tests: los unitarios sobre las reglas del negocio y
 las validaciones, y los de integración sobre la API completa contra una base de

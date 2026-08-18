@@ -63,6 +63,7 @@ const AYER = diaRelativo(-1);
  * siembra, y borrarlo dejaría a los usuarios sin nivel de acceso.
  */
 const limpiar = async () => {
+  await prisma.pago.deleteMany();
   await prisma.evento.deleteMany();
   await prisma.reserva.deleteMany();
   await prisma.horario.deleteMany();

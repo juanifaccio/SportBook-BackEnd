@@ -41,7 +41,9 @@ describe('niveles de acceso', () => {
       ['get', '/api/reservas'],
       ['post', '/api/reservas'],
       ['get', '/api/eventos'],
-      ['post', '/api/eventos']
+      ['post', '/api/eventos'],
+      ['get', '/api/pagos'],
+      ['post', '/api/pagos']
     ];
 
     for (const [metodo, ruta] of endpoints) {

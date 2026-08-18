@@ -45,7 +45,8 @@ describe('reservas', () => {
 
       assert.equal(respuesta.status, 201);
       assert.equal(respuesta.body.usuarioId, datos.cliente.id);
-      assert.equal(respuesta.body.estado, 'CONFIRMADA');
+      // Nace PENDIENTE: la confirma el pago, no el alta. Ver `pago.test.js`.
+      assert.equal(respuesta.body.estado, 'PENDIENTE');
     });
 
     // La fecha, las horas, la cancha y el precio los deriva el backend del turno:
@@ -402,7 +403,7 @@ describe('reservas', () => {
       const respuesta = await cancelar(otroCliente);
 
       assert.equal(respuesta.status, 403);
-      assert.equal((await prisma.reserva.findUnique({ where: { id: reserva.id } })).estado, 'CONFIRMADA');
+      assert.equal((await prisma.reserva.findUnique({ where: { id: reserva.id } })).estado, 'PENDIENTE');
     });
 
     it('el administrador sí puede', async () => {
