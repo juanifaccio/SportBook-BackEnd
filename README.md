@@ -27,7 +27,10 @@ través de esta API, en JSON. El frontend vive en su propio repositorio,
 
 ## Requisitos previos
 
-- **Node.js 20 o superior** y **npm 10 o superior**. Verificalo con:
+- **Node.js 20.19 o superior** y **npm 10 o superior**. El mínimo lo pone Prisma
+  7, que admite `^20.19 || ^22.12 || >=24`: una 20 anterior a la 20.19 no sirve.
+  El proyecto se desarrolla sobre el **LTS 24**, que es lo recomendable si estás
+  instalando de cero. Verificalo con:
 
   ```bash
   node --version
