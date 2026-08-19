@@ -13,6 +13,16 @@ const diaRelativo = (dias) => {
 
   fecha.setDate(fecha.getDate() + dias);
 
+  return comoDia(fecha);
+};
+
+/**
+ * El día local de un `Date`, en formato "AAAA-MM-DD".
+ *
+ * Con las partes locales y nunca con `toISOString()`, que devuelve el día en UTC
+ * y a la noche ya está informando el de mañana.
+ */
+const comoDia = (fecha) => {
   const mes = String(fecha.getMonth() + 1).padStart(2, '0');
   const dia = String(fecha.getDate()).padStart(2, '0');
 
@@ -26,4 +36,4 @@ const diaRelativo = (dias) => {
  */
 const comoFechaDeBase = (dia) => new Date(`${dia}T00:00:00.000Z`);
 
-module.exports = { diaRelativo, comoFechaDeBase };
+module.exports = { diaRelativo, comoDia, comoFechaDeBase };

@@ -104,6 +104,102 @@ const buscarSolapado = async (datos, idAExcluir) => {
     });
 };
 
+/**
+ * Duración mínima y máxima de un turno generado, en minutos. El piso es el turno
+ * más corto que tiene sentido ofrecer y el techo, media jornada: no son límites
+ * del negocio sino un cerco para que un número absurdo no genere una grilla que
+ * nadie pidió.
+ */
+const DURACION_MINIMA = 15;
+const DURACION_MAXIMA = 480;
+
+/** Pasa una hora "HH:mm" a los minutos transcurridos desde la medianoche. */
+const aMinutos = (hora) => {
+    const [horas, minutos] = hora.split(':').map(Number);
+
+    return horas * 60 + minutos;
+};
+
+/** La vuelta de `aMinutos`: los minutos desde la medianoche, como "HH:mm". */
+const aTextoHora = (minutos) => {
+    const horas = `${Math.floor(minutos / 60)}`.padStart(2, '0');
+
+    return `${horas}:${`${minutos % 60}`.padStart(2, '0')}`;
+};
+
+/**
+ * Parte un rango horario en turnos consecutivos de `duracion` minutos.
+ *
+ * El último turno se descarta si no entra completo: si el rango no es múltiplo
+ * de la duración —de 08:00 a 13:00 en turnos de 90 minutos—, estirarlo pasaría
+ * del horario que pidió el administrador y recortarlo dejaría a la venta un
+ * turno más corto que los demás al mismo precio por hora.
+ */
+const generarTurnos = (horaInicio, horaFin, duracion) => {
+    const fin = aMinutos(horaFin);
+    const turnos = [];
+
+    for (let desde = aMinutos(horaInicio); desde + duracion <= fin; desde += duracion) {
+        turnos.push({
+            horaInicio: aTextoHora(desde),
+            horaFin: aTextoHora(desde + duracion)
+        });
+    }
+
+    return turnos;
+};
+
+/**
+ * Dos turnos se pisan cuando cada uno empieza antes de que termine el otro.
+ *
+ * Es la misma pregunta que le hace `buscarSolapado` a la base, pero contestada
+ * en memoria: el lote la repite una vez por turno generado y siempre contra el
+ * mismo día de la misma cancha, así que traer esos turnos una sola vez sale más
+ * barato que una consulta por cada uno.
+ */
+const seSolapan = (uno, otro) => uno.horaInicio < otro.horaFin && uno.horaFin > otro.horaInicio;
+
+/**
+ * Valida el cuerpo de la generación en lote y devuelve los turnos que hay que
+ * crear.
+ *
+ * La cancha, el día y el rango se validan con `validarDatos`, que es la misma
+ * regla que aplica un turno suelto: son exactamente los mismos campos. Lo único
+ * propio del lote es la duración.
+ */
+const validarLote = (body) => {
+    const { mensaje, datos } = validarDatos(body);
+
+    if (mensaje) {
+        return { mensaje: mensaje };
+    }
+
+    const duracion = parseInt(body.duracion);
+
+    if (isNaN(duracion) || duracion < DURACION_MINIMA || duracion > DURACION_MAXIMA) {
+        return {
+            mensaje: `La duración del turno es obligatoria y debe estar entre ${DURACION_MINIMA} y ${DURACION_MAXIMA} minutos`
+        };
+    }
+
+    const turnos = generarTurnos(datos.horaInicio, datos.horaFin, duracion);
+
+    // Un rango de 10:00 a 11:00 en turnos de 90 minutos no da ninguno. No es un
+    // lote vacío sino un rango mal cargado, así que se avisa en vez de crear
+    // nada y responder que salió todo bien.
+    if (turnos.length === 0) {
+        return { mensaje: 'El rango horario es más corto que la duración del turno' };
+    }
+
+    return {
+        datos: {
+            canchaId: datos.canchaId,
+            fecha: datos.fecha,
+            turnos: turnos
+        }
+    };
+};
+
 const listarHorarios = async (req, res) => {
     try {
         // El listado se consulta siempre por cancha: son los turnos de una cancha
@@ -215,6 +311,101 @@ const crearHorario = async (req, res) => {
 
         res.status(500).json({
             mensaje: 'Error al crear el horario'
+        });
+    }
+};
+
+/**
+ * Genera de una vez todos los turnos de un día para una cancha.
+ *
+ * Es la misma alta de siempre repetida: llenar un día de a un turno son doce
+ * formularios idénticos salvo por la hora. Los turnos que se pisen con alguno ya
+ * cargado se saltean en vez de hacer fallar el lote entero, que es lo que
+ * permite ampliar una grilla ya empezada sin tener que mirar antes cuál falta.
+ */
+const generarHorarios = async (req, res) => {
+    try {
+        const { mensaje, datos } = validarLote(req.body);
+
+        if (mensaje) {
+            return res.status(400).json({
+                mensaje: mensaje
+            });
+        }
+
+        const cancha = await prisma.cancha.findUnique({
+            where: {
+                id: datos.canchaId
+            }
+        });
+
+        if (!cancha) {
+            return res.status(400).json({
+                mensaje: 'La cancha indicada no existe'
+            });
+        }
+
+        const existentes = await prisma.horario.findMany({
+            where: {
+                canchaId: datos.canchaId,
+                fecha: datos.fecha
+            },
+            select: {
+                horaInicio: true,
+                horaFin: true
+            }
+        });
+
+        const aCrear = datos.turnos.filter(
+            (turno) => !existentes.some((existente) => seSolapan(turno, existente))
+        );
+
+        // Que no quede nada por crear no es un lote vacío del que informar: el
+        // administrador pidió turnos y no se generó ninguno, igual que cuando un
+        // alta suelta se pisa con otro turno.
+        if (aCrear.length === 0) {
+            return res.status(409).json({
+                mensaje: 'Todos los turnos de ese rango ya estaban cargados'
+            });
+        }
+
+        // Todo o nada: un lote a medias dejaría al administrador sin saber qué
+        // quedó cargado y qué no. El índice único de (cancha, día, hora de
+        // inicio) es el que ataja el turno que se cuele entre la lectura de
+        // arriba y esta escritura.
+        const creados = await prisma.$transaction(
+            aCrear.map((turno) =>
+                prisma.horario.create({
+                    data: {
+                        ...turno,
+                        fecha: datos.fecha,
+                        canchaId: datos.canchaId
+                    },
+                    include: {
+                        cancha: true
+                    }
+                })
+            )
+        );
+
+        // Los salteados van en el número y no en la lista: lo que el
+        // administrador necesita saber es cuántos de los que pidió ya estaban, y
+        // cuáles son ya los está viendo en el listado.
+        res.status(201).json({
+            creados: creados.map(aRespuesta),
+            omitidos: datos.turnos.length - aCrear.length
+        });
+    } catch (error) {
+        if (error.code === CODIGO_DUPLICADO) {
+            return res.status(409).json({
+                mensaje: 'La cancha ya tiene un horario que empieza a esa hora ese día'
+            });
+        }
+
+        console.error(error);
+
+        res.status(500).json({
+            mensaje: 'Error al generar los horarios'
         });
     }
 };
@@ -377,9 +568,13 @@ const eliminarHorario = async (req, res) => {
 module.exports = {
     listarHorarios,
     crearHorario,
+    generarHorarios,
     obtenerHorario,
     actualizarHorario,
     eliminarHorario,
     validarDatos,
+    validarLote,
+    generarTurnos,
+    seSolapan,
     aRespuesta
 };

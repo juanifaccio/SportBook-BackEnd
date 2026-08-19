@@ -36,6 +36,7 @@ describe('niveles de acceso', () => {
       ['get', '/api/tipos-evento'],
       ['get', '/api/canchas'],
       ['get', '/api/horarios'],
+      ['post', '/api/horarios/lote'],
       ['get', '/api/roles'],
       ['get', '/api/usuarios'],
       ['get', '/api/reservas'],
