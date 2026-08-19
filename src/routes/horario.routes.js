@@ -3,6 +3,7 @@ const express = require('express');
 const {
     listarHorarios,
     crearHorario,
+    generarHorarios,
     obtenerHorario,
     actualizarHorario,
     eliminarHorario
@@ -18,6 +19,9 @@ router.use(autenticar);
 
 router.get('/', listarHorarios);
 router.post('/', autorizar(ROLES.ADMIN), crearHorario);
+// Antes del '/:id' de abajo no hace falta —son verbos distintos—, pero va acá
+// para que se lea junto al alta de a uno, que es la operación que reemplaza.
+router.post('/lote', autorizar(ROLES.ADMIN), generarHorarios);
 router.get('/:id', obtenerHorario);
 router.put('/:id', autorizar(ROLES.ADMIN), actualizarHorario);
 router.delete('/:id', autorizar(ROLES.ADMIN), eliminarHorario);

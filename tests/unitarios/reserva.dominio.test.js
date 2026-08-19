@@ -10,7 +10,7 @@ const {
   armarFiltro,
   aRespuesta
 } = require('../../src/controllers/reserva.controller');
-const { diaRelativo, comoFechaDeBase } = require('../apoyo/fechas');
+const { diaRelativo, comoDia, comoFechaDeBase } = require('../apoyo/fechas');
 
 const MANANA = diaRelativo(1);
 const AYER = diaRelativo(-1);
@@ -82,10 +82,14 @@ describe('reserva — reglas del negocio', () => {
     // que rearmar el instante en hora local: la del complejo es la que decide si
     // el turno todavía sirve.
     it('compone el instante en hora local, no en UTC', () => {
+      // La hora siguiente en punto, con el día que le corresponde: a las 23 y
+      // pico esa hora cae en el día de mañana, y tomar el de hoy dejaba el turno
+      // 23 horas en el pasado. El test fallaba solo entre las 23:00 y la
+      // medianoche, que es la única franja en la que la suma cambia de día.
       const dentroDeUnRato = new Date(Date.now() + 60 * 60 * 1000);
       const hora = `${String(dentroDeUnRato.getHours()).padStart(2, '0')}:00`;
 
-      assert.equal(yaEmpezo(comoFechaDeBase(diaRelativo(0)), hora), false);
+      assert.equal(yaEmpezo(comoFechaDeBase(comoDia(dentroDeUnRato)), hora), false);
     });
   });
 

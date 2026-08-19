@@ -6,6 +6,7 @@ const app = require('../../src/app');
 const { prisma, verificarBaseDePrueba, limpiar, sembrar, autorizacion } = require('../apoyo/base');
 const { diaRelativo } = require('../apoyo/fechas');
 
+const MANANA = diaRelativo(1);
 const OTRO_DIA = diaRelativo(30);
 
 describe('turnos de una cancha', () => {
@@ -145,6 +146,175 @@ describe('turnos de una cancha', () => {
         .send(turno({ horaInicio: '19:00', horaFin: '18:00' }));
 
       assert.equal(respuesta.status, 400);
+    });
+  });
+
+  describe('POST /api/horarios/lote', () => {
+    const lote = (cambios = {}) => ({
+      fecha: OTRO_DIA,
+      horaInicio: '08:00',
+      horaFin: '12:00',
+      canchaId: datos.cancha.id,
+      duracion: 60,
+      ...cambios
+    });
+
+    it('crea todos los turnos del rango de una sola vez', async () => {
+      const respuesta = await request(app)
+        .post('/api/horarios/lote')
+        .set(...admin)
+        .send(lote());
+
+      assert.equal(respuesta.status, 201);
+      assert.equal(respuesta.body.creados.length, 4);
+      assert.equal(respuesta.body.omitidos, 0);
+      assert.deepEqual(
+        respuesta.body.creados.map((turno) => `${turno.horaInicio}-${turno.horaFin}`),
+        ['08:00-09:00', '09:00-10:00', '10:00-11:00', '11:00-12:00']
+      );
+    });
+
+    it('deja los turnos generados con el mismo formato que un alta suelta', async () => {
+      const respuesta = await request(app)
+        .post('/api/horarios/lote')
+        .set(...admin)
+        .send(lote());
+
+      const [primero] = respuesta.body.creados;
+
+      assert.equal(primero.fecha, OTRO_DIA);
+      assert.equal(primero.disponible, true);
+      assert.equal(primero.canchaId, datos.cancha.id);
+      assert.equal(typeof primero.cancha.precioPorHora, 'number');
+    });
+
+    it('los turnos generados quedan guardados y salen en el listado', async () => {
+      await request(app).post('/api/horarios/lote').set(...admin).send(lote());
+
+      const respuesta = await request(app)
+        .get(`/api/horarios?canchaId=${datos.cancha.id}&fecha=${OTRO_DIA}`)
+        .set(...admin);
+
+      assert.equal(respuesta.body.length, 4);
+    });
+
+    // Es lo que permite ampliar una grilla ya empezada sin mirar antes cuáles
+    // faltan: los que ya están se saltean y el resto se crea igual.
+    it('saltea los turnos que se pisan con los ya cargados y crea el resto', async () => {
+      // La cancha sembrada ya tiene mañana de 10:00 a 11:00 y de 11:00 a 12:30.
+      const respuesta = await request(app)
+        .post('/api/horarios/lote')
+        .set(...admin)
+        .send(lote({ fecha: MANANA, horaInicio: '08:00', horaFin: '13:00' }));
+
+      assert.equal(respuesta.status, 201);
+      // De los cinco turnos del rango se crean los dos primeros. El de las 10:00
+      // se pisa con el turno sembrado a esa hora, y los de las 11:00 y las 12:00
+      // con el de 11:00 a 12:30: un turno cargado a mano no tiene por qué encajar
+      // en la grilla que se está generando, y el que sobresale se lleva puesto al
+      // siguiente.
+      assert.deepEqual(
+        respuesta.body.creados.map((turno) => turno.horaInicio),
+        ['08:00', '09:00']
+      );
+      assert.equal(respuesta.body.omitidos, 3);
+    });
+
+    it('no toca los turnos que ya estaban cargados', async () => {
+      await request(app)
+        .post('/api/horarios/lote')
+        .set(...admin)
+        .send(lote({ fecha: MANANA, horaInicio: '08:00', horaFin: '13:00' }));
+
+      const guardado = await prisma.horario.findUnique({
+        where: { id: datos.otroTurnoLibre.id }
+      });
+
+      // El turno sembrado de 11:00 a 12:30 no encaja en una grilla de una hora:
+      // si el lote lo hubiera pisado, habría quedado de 11:00 a 12:00.
+      assert.equal(guardado.horaFin, '12:30');
+    });
+
+    it('rechaza el lote en el que no queda ningún turno por crear', async () => {
+      const respuesta = await request(app)
+        .post('/api/horarios/lote')
+        .set(...admin)
+        .send(lote({ fecha: MANANA, horaInicio: '10:00', horaFin: '11:00' }));
+
+      assert.equal(respuesta.status, 409);
+      assert.match(respuesta.body.mensaje, /ya estaban cargados/);
+    });
+
+    it('no crea nada cuando responde que ya estaban todos', async () => {
+      await request(app)
+        .post('/api/horarios/lote')
+        .set(...admin)
+        .send(lote({ fecha: MANANA, horaInicio: '10:00', horaFin: '11:00' }));
+
+      const cuantos = await prisma.horario.count({
+        where: { canchaId: datos.cancha.id, fecha: new Date(MANANA) }
+      });
+
+      assert.equal(cuantos, 2);
+    });
+
+    it('rechaza el rango más corto que la duración del turno', async () => {
+      const respuesta = await request(app)
+        .post('/api/horarios/lote')
+        .set(...admin)
+        .send(lote({ horaFin: '08:30', duracion: 60 }));
+
+      assert.equal(respuesta.status, 400);
+      assert.match(respuesta.body.mensaje, /más corto/);
+    });
+
+    it('rechaza el lote sin duración', async () => {
+      const respuesta = await request(app)
+        .post('/api/horarios/lote')
+        .set(...admin)
+        .send(lote({ duracion: undefined }));
+
+      assert.equal(respuesta.status, 400);
+      assert.match(respuesta.body.mensaje, /duración/);
+    });
+
+    it('rechaza el lote de una cancha que no existe', async () => {
+      const respuesta = await request(app)
+        .post('/api/horarios/lote')
+        .set(...admin)
+        .send(lote({ canchaId: 999999 }));
+
+      assert.equal(respuesta.status, 400);
+      assert.match(respuesta.body.mensaje, /no existe/);
+    });
+
+    it('no crea ningún turno cuando el lote se rechaza', async () => {
+      await request(app)
+        .post('/api/horarios/lote')
+        .set(...admin)
+        .send(lote({ duracion: 5 }));
+
+      const cuantos = await prisma.horario.count({
+        where: { canchaId: datos.cancha.id, fecha: new Date(OTRO_DIA) }
+      });
+
+      assert.equal(cuantos, 0);
+    });
+
+    // La grilla de la cancha la define el complejo, igual que el alta de a uno.
+    it('le niega la generación al cliente', async () => {
+      const respuesta = await request(app)
+        .post('/api/horarios/lote')
+        .set(...autorizacion(datos.cliente))
+        .send(lote());
+
+      assert.equal(respuesta.status, 403);
+    });
+
+    it('le niega la generación a quien no tiene sesión', async () => {
+      const respuesta = await request(app).post('/api/horarios/lote').send(lote());
+
+      assert.equal(respuesta.status, 401);
     });
   });
 
