@@ -1,7 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { validarDatos, aRespuesta } = require('../../src/controllers/cancha.controller');
+const { validarDatos, armarFiltro, aRespuesta } = require('../../src/controllers/cancha.controller');
 
 const cuerpo = (cambios = {}) => ({
   nombre: 'Cancha 1',
@@ -67,6 +67,34 @@ describe('cancha — validación', () => {
 
     it('rechaza la cancha sin tipo', () => {
       assert.match(validarDatos(cuerpo({ tipoCanchaId: undefined })).mensaje, /tipo de cancha/);
+    });
+  });
+
+  describe('armarFiltro', () => {
+    // Sin query el listado es el catálogo entero: un `where` vacío, no uno con
+    // claves en `undefined`, que Prisma interpretaría como "campo nulo".
+    it('sin filtros devuelve un where vacío', () => {
+      assert.deepEqual(armarFiltro({}), { filtro: {} });
+    });
+
+    // El tipo llega de la query, o sea siempre como texto.
+    it('acepta el tipo como texto y lo convierte a número', () => {
+      assert.deepEqual(armarFiltro({ tipoCanchaId: '3' }), { filtro: { tipoCanchaId: 3 } });
+    });
+
+    it('rechaza un tipo que no es un número', () => {
+      assert.match(armarFiltro({ tipoCanchaId: 'futbol' }).mensaje, /tipo de cancha/);
+    });
+
+    // Un tipo que no existe no es un error: es un filtro que no da resultados.
+    // Comprobarlo contra la base costaría una consulta para devolver la lista
+    // vacía que la consulta filtrada ya devuelve sola.
+    it('acepta un id de tipo que puede no existir', () => {
+      assert.deepEqual(armarFiltro({ tipoCanchaId: '9999' }), { filtro: { tipoCanchaId: 9999 } });
+    });
+
+    it('ignora las claves de la query que no son filtros', () => {
+      assert.deepEqual(armarFiltro({ estado: 'DISPONIBLE', orden: 'precio' }), { filtro: {} });
     });
   });
 

@@ -57,13 +57,52 @@ const validarDatos = (body) => {
     return { datos: { nombre, precioPorHora, estado, tipoCanchaId } };
 };
 
+/**
+ * Arma el filtro del listado a partir de la query. Devuelve `{ mensaje }` si un
+ * valor no sirve, con la misma forma que `validarDatos`, para que el handler
+ * responda 400 sin distinguir de dónde vino el error.
+ *
+ * Filtrar por tipo lo resuelve la base y no el navegador: el listado se pide
+ * para ver las canchas de un tipo, y traer el complejo entero para descartar la
+ * mayoría en el cliente es trabajo de más que además crece con cada cancha.
+ */
+const armarFiltro = (query) => {
+    const filtro = {};
+
+    if (query.tipoCanchaId !== undefined) {
+        const tipoCanchaId = parseInt(query.tipoCanchaId);
+
+        if (isNaN(tipoCanchaId)) {
+            return { mensaje: 'El id del tipo de cancha debe ser un número' };
+        }
+
+        filtro.tipoCanchaId = tipoCanchaId;
+    }
+
+    return { filtro };
+};
+
 const listarCanchas = async (req, res) => {
     try {
+        const { mensaje, filtro } = armarFiltro(req.query);
+
+        if (mensaje) {
+            return res.status(400).json({
+                mensaje: mensaje
+            });
+        }
+
         // Se incluye el tipo para que el listado del frontend pueda mostrar su
-        // nombre sin tener que pedirlo cancha por cancha.
+        // nombre sin tener que pedirlo cancha por cancha. Ordenadas por nombre:
+        // es un listado para buscar una cancha, y el orden de alta no ayuda a
+        // encontrarla. El nombre es único, así que el orden es siempre el mismo.
         const canchas = await prisma.cancha.findMany({
+            where: filtro,
             include: {
                 tipoCancha: true
+            },
+            orderBy: {
+                nombre: 'asc'
             }
         });
 
@@ -286,5 +325,6 @@ module.exports = {
     actualizarCancha,
     eliminarCancha,
     validarDatos,
+    armarFiltro,
     aRespuesta
 };
