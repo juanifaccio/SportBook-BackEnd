@@ -209,3 +209,24 @@ model Evento {
   reservaId Int     @unique
   reserva   Reserva @relation(fields: [reservaId], references: [id])
 }
+
+/// Lo que el complejo alquila además de la cancha: pelotas, pecheras, paletas.
+///
+/// Es un catálogo propio y no un campo de la cancha porque el mismo artículo se
+/// alquila para cualquiera de ellas, y porque lo que se cobra depende de cuánto
+/// se lleve: la cantidad y el subtotal van en `ReservaEquipamiento`.
+model Equipamiento {
+  id          Int     @id @default(autoincrement())
+  // Único por el mismo motivo que el nombre de TipoCancha: dos filas "Pelota de
+  // fútbol" partirían el stock entre dos ids que significan lo mismo, y al
+  // reservar habría que elegir entre dos opciones idénticas, cada una con
+  // disponibilidad incompleta.
+  nombre      String  @unique
+  descripcion String
+  // Decimal y no Float, como los otros importes: es plata, se multiplica por la
+  // cantidad alquilada y se suma al total de la reserva.
+  precio      Decimal @db.Decimal(10, 2)
+  // Cuántas unidades tiene el complejo. Cero es un valor válido: un artículo
+  // agotado sigue estando en el catálogo.
+  stock       Int
+}
