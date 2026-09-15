@@ -71,6 +71,7 @@ const limpiar = async () => {
   await prisma.tipoCancha.deleteMany();
   await prisma.usuario.deleteMany();
   await prisma.tipoEvento.deleteMany();
+  await prisma.equipamiento.deleteMany();
 };
 
 const crearUsuario = async (datos) => {
@@ -113,6 +114,10 @@ const sembrar = async () => {
   });
 
   const tipoEvento = await prisma.tipoEvento.create({ data: { nombre: 'Cumpleaños' } });
+
+  const equipamiento = await prisma.equipamiento.create({
+    data: { nombre: 'Pelota de fútbol', descripcion: 'Número 5', precio: 1500, stock: 10 }
+  });
 
   const cancha = await prisma.cancha.create({
     data: {
@@ -179,6 +184,7 @@ const sembrar = async () => {
     inactivo,
     tipoCancha,
     tipoEvento,
+    equipamiento,
     cancha,
     canchaEnMantenimiento,
     turnoLibre,

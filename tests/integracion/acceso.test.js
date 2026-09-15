@@ -35,6 +35,7 @@ describe('niveles de acceso', () => {
       ['get', '/api/tipos-cancha'],
       ['get', '/api/tipos-evento'],
       ['get', '/api/canchas'],
+      ['get', '/api/equipamientos'],
       ['get', '/api/horarios'],
       ['post', '/api/horarios/lote'],
       ['get', '/api/roles'],
@@ -65,8 +66,8 @@ describe('niveles de acceso', () => {
   describe('cliente', () => {
     // El cliente necesita el catálogo para poder reservar: sin ver las canchas y
     // sus turnos no podría elegir ninguno.
-    it('consulta los tipos de cancha, las canchas y los horarios', async () => {
-      for (const ruta of ['/api/tipos-cancha', '/api/tipos-evento', '/api/canchas', '/api/horarios']) {
+    it('consulta los tipos de cancha, las canchas, los horarios y el equipamiento', async () => {
+      for (const ruta of ['/api/tipos-cancha', '/api/tipos-evento', '/api/canchas', '/api/horarios', '/api/equipamientos']) {
         const respuesta = await request(app).get(ruta).set(...autorizacion(datos.cliente));
 
         assert.equal(respuesta.status, 200, `esperaba 200 en GET ${ruta}`);
@@ -106,6 +107,33 @@ describe('niveles de acceso', () => {
 
       assert.equal(cancha.status, 403);
       assert.equal(horario.status, 403);
+    });
+
+    // El cliente lee el catálogo de equipamiento porque lo necesita para elegir
+    // qué alquila, pero el stock y los precios los maneja el complejo.
+    it('lee el equipamiento pero no lo administra', async () => {
+      const lectura = await request(app)
+        .get('/api/equipamientos')
+        .set(...autorizacion(datos.cliente));
+
+      const alta = await request(app)
+        .post('/api/equipamientos')
+        .set(...autorizacion(datos.cliente))
+        .send({ nombre: 'Pechera', descripcion: 'Talle único', precio: 800, stock: 4 });
+
+      const edicion = await request(app)
+        .put(`/api/equipamientos/${datos.equipamiento.id}`)
+        .set(...autorizacion(datos.cliente))
+        .send({ nombre: 'Pelota', descripcion: 'Número 5', precio: 1, stock: 99 });
+
+      const baja = await request(app)
+        .delete(`/api/equipamientos/${datos.equipamiento.id}`)
+        .set(...autorizacion(datos.cliente));
+
+      assert.equal(lectura.status, 200);
+      assert.equal(alta.status, 403);
+      assert.equal(edicion.status, 403);
+      assert.equal(baja.status, 403);
     });
 
     // Usuarios y roles son administración pura: quién existe en el complejo y con
