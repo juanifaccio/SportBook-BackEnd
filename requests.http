@@ -185,6 +185,40 @@ Content-Type: application/json
     "usuarioId": 1
 }
 
+### Unidades de equipamiento libres durante un turno
+# Con `horarioId`, cada artículo viene además con `disponibles`: el stock menos
+# lo que ya alquilan las reservas no canceladas que se superponen con ese turno.
+GET http://localhost:3000/api/equipamientos?horarioId=2
+Authorization: Bearer {{login.response.body.token}}
+
+### Reservar un turno con equipamiento
+# Va en el mismo pedido que la reserva porque cambia el precio total: el backend
+# calcula cada subtotal con el precio del artículo y lo suma al del turno.
+POST http://localhost:3000/api/reservas
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "horarioId": 2,
+    "usuarioId": 1,
+    "equipamientos": [
+        { "equipamientoId": 1, "cantidad": 2 }
+    ]
+}
+
+### Reservar más unidades de las que quedan para el turno (409)
+POST http://localhost:3000/api/reservas
+Authorization: Bearer {{login.response.body.token}}
+Content-Type: application/json
+
+{
+    "horarioId": 3,
+    "usuarioId": 1,
+    "equipamientos": [
+        { "equipamientoId": 1, "cantidad": 999 }
+    ]
+}
+
 ### Reservar el mismo turno otra vez (409)
 POST http://localhost:3000/api/reservas
 Authorization: Bearer {{login.response.body.token}}

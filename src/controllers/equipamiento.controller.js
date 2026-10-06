@@ -1,7 +1,11 @@
 const prisma = require('../config/prisma');
+const { alquiladoEnTurno, disponiblesDe } = require('./reserva.controller');
 
 /** Código con el que Prisma reporta la violación de un índice único. */
 const CODIGO_DUPLICADO = 'P2002';
+
+/** Código con el que Prisma reporta la violación de una clave foránea. */
+const CODIGO_CLAVE_FORANEA = 'P2003';
 
 /**
  * Normaliza un texto recibido del cliente. El `trim` del nombre no es cosmético:
@@ -13,8 +17,8 @@ const normalizar = (texto) => (typeof texto === 'string' ? texto.trim() : '');
 
 /**
  * Prisma devuelve `precio` como un Decimal, que al serializarse a JSON viaja
- * como string. El frontend lo necesita como número para formatearlo y, cuando
- * exista la reserva con equipamiento, multiplicarlo por la cantidad.
+ * como string. El frontend lo necesita como número para formatearlo y
+ * multiplicarlo por la cantidad al reservar.
  */
 const aRespuesta = (equipamiento) => ({
     ...equipamiento,
@@ -54,8 +58,54 @@ const validarDatos = (body) => {
     return { datos: { nombre, descripcion, precio, stock } };
 };
 
+/**
+ * Lee el turno de `?horarioId=`, si vino. Devuelve `{ codigo, mensaje }` si no
+ * sirve, `{ horario }` si sí, o `{}` si no se pidió.
+ */
+const buscarTurnoDelFiltro = async (query) => {
+    if (query.horarioId === undefined) {
+        return {};
+    }
+
+    const horarioId = parseInt(query.horarioId);
+
+    if (isNaN(horarioId)) {
+        return { codigo: 400, mensaje: 'El id del turno debe ser un número' };
+    }
+
+    const horario = await prisma.horario.findUnique({
+        where: {
+            id: horarioId
+        }
+    });
+
+    // A diferencia del filtro por tipo de las canchas, acá un turno inexistente
+    // sí es un error: no es una búsqueda sin resultados, sino una pregunta
+    // —cuánto queda libre en este turno— que no tiene respuesta.
+    if (!horario) {
+        return { codigo: 404, mensaje: 'Turno no encontrado' };
+    }
+
+    return { horario };
+};
+
+/**
+ * Lista el catálogo. Con `?horarioId=` cada artículo viene además con
+ * `disponibles`: las unidades que quedan libres durante ese turno, que es lo que
+ * la pantalla de reservar necesita para no ofrecer lo que ya está alquilado. La
+ * cuenta es la misma que hace el alta de la reserva (`alquiladoEnTurno`), así
+ * que lo que se muestra es lo que después se acepta.
+ */
 const listarEquipamientos = async (req, res) => {
     try {
+        const { codigo, mensaje, horario } = await buscarTurnoDelFiltro(req.query);
+
+        if (mensaje) {
+            return res.status(codigo).json({
+                mensaje: mensaje
+            });
+        }
+
         // Ordenado por nombre: es un catálogo que se recorre para encontrar un
         // artículo, y el orden de alta no ayuda a eso. El nombre es único, así
         // que el orden es siempre el mismo.
@@ -65,7 +115,18 @@ const listarEquipamientos = async (req, res) => {
             }
         });
 
-        res.json(equipamientos.map(aRespuesta));
+        if (!horario) {
+            return res.json(equipamientos.map(aRespuesta));
+        }
+
+        const alquilado = await alquiladoEnTurno(prisma, horario);
+
+        res.json(
+            equipamientos.map((equipamiento) => ({
+                ...aRespuesta(equipamiento),
+                disponibles: disponiblesDe(equipamiento, alquilado)
+            }))
+        );
     } catch (error) {
         console.error(error);
 
@@ -212,10 +273,6 @@ const eliminarEquipamiento = async (req, res) => {
             });
         }
 
-        // Todavía no hay un 409 por clave foránea como el de Cancha: nada
-        // referencia al equipamiento hasta que exista `ReservaEquipamiento`, y
-        // atrapar un error que la base no puede tirar sería código inalcanzable.
-        // Ese caso entra con la tarea de reservar con equipamiento.
         await prisma.equipamiento.delete({
             where: {
                 id: id
@@ -226,6 +283,16 @@ const eliminarEquipamiento = async (req, res) => {
             mensaje: 'Equipamiento eliminado correctamente'
         });
     } catch (error) {
+        // Un artículo que ya se alquiló en alguna reserva queda en su historial:
+        // la FK de `ReservaEquipamiento` impide borrarlo, y sin esto el error de
+        // la base saldría como un 500. Para sacarlo de circulación alcanza con
+        // dejarle el stock en cero.
+        if (error.code === CODIGO_CLAVE_FORANEA) {
+            return res.status(409).json({
+                mensaje: 'No se puede eliminar el equipamiento porque hay reservas que lo incluyen'
+            });
+        }
+
         console.error(error);
 
         res.status(500).json({
