@@ -4,10 +4,11 @@
   "description": "API REST de SportBook, una aplicación para gestionar reservas de canchas deportivas",
   "main": "src/server.js",
   "scripts": {
+    "postinstall": "prisma generate",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate": "prisma migrate dev && prisma generate",
     "prisma:studio": "prisma studio",
     "seed": "node prisma/seed.js",
     "test": "node --require ./tests/apoyo/ambiente.js --test \"tests/unitarios/*.test.js\"",

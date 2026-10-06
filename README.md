@@ -46,11 +46,23 @@ través de esta API, en JSON. El frontend vive en su propio repositorio,
 
 ## Instalación
 
-Cloná el repositorio e instalá las dependencias:
+Cloná el repositorio, entrá a su carpeta e instalá las dependencias:
+
+```bash
+git clone https://github.com/juanifaccio/SportBook-BackEnd.git
+```
+
+```bash
+cd SportBook-BackEnd
+```
 
 ```bash
 npm install
 ```
+
+Al terminar, `npm install` genera además el cliente de Prisma —el código con el
+que la aplicación habla con la base—. No necesita el `.env` ni la base de datos,
+así que los tests unitarios (`npm test`) ya se pueden correr desde acá.
 
 ## Configuración
 
@@ -199,6 +211,7 @@ nueva. Para correr las dos suites de una: `npm run test:todo`.
 | `npm start` | Levanta el servidor en `http://localhost:3000` (o en el puerto de `PORT`) |
 | `npm run dev` | Igual, pero reinicia solo ante cada cambio en el código |
 | `npm run prisma:migrate` | Crea y aplica las migraciones pendientes, y regenera el cliente |
+| `npm install` | Instala las dependencias y genera el cliente de Prisma (`postinstall`) |
 | `npm run prisma:generate` | Regenera el cliente de Prisma (tras editar `schema.prisma`) |
 | `npm run prisma:studio` | Abre Prisma Studio para inspeccionar los datos en el navegador |
 | `npm run seed` | Crea el administrador inicial a partir del `.env` |
