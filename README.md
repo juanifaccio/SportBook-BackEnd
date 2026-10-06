@@ -316,6 +316,20 @@ Cuerpo: `{ nombre, descripcion }`. El nombre es único.
 Los mismos cinco endpoints. Cuerpo: `{ nombre }`, único. No se puede eliminar un
 tipo que ya tiene eventos cargados (`409`).
 
+### Equipamiento — `/api/equipamientos`
+
+Lo que el complejo alquila además de la cancha. Los mismos cinco endpoints.
+Cuerpo: `{ nombre, descripcion, precio, stock }`. El nombre es único y el stock es
+un entero donde el cero es válido: un artículo agotado sigue en el catálogo. No se
+puede eliminar un artículo que alguna reserva incluye (`409`): para sacarlo de
+circulación alcanza con dejarle el stock en cero.
+
+El stock son **las unidades que tiene el complejo**, y reservar no lo descuenta.
+Una reserva ocupa sus unidades solo durante su turno, así que
+`GET /api/equipamientos?horarioId=4` agrega a cada artículo `disponibles`: el
+stock menos lo que alquilan las reservas no canceladas del mismo día cuyo horario
+se superpone con ese turno.
+
 ### Canchas — `/api/canchas`
 
 Los mismos cinco endpoints. Cuerpo:
@@ -368,11 +382,18 @@ No es un ABM: es el caso de uso central de la aplicación.
 | `PUT` | `/api/reservas/:id` | Reprograma a otro turno libre |
 | `PUT` | `/api/reservas/:id/cancelar` | Cancela y libera el turno |
 
-El alta recibe solo `{ horarioId }` y la reprogramación también: la fecha, las
+El alta recibe `{ horarioId }` y la reprogramación también: la fecha, las
 horas, la cancha y el precio total se derivan del turno en el servidor, no se
 aceptan del cliente. El dueño de la reserva sale de la sesión; un `ADMIN` puede
 agregar `usuarioId` para reservar a nombre de otro desde el mostrador, y para él
 ese campo es obligatorio.
+
+El alta acepta además, opcional, el equipamiento que se alquila con la reserva:
+`equipamientos: [{ equipamientoId, cantidad }]`. El servidor calcula cada
+subtotal con el precio del artículo y lo suma al precio total. Si no quedan
+suficientes unidades para el turno responde `409` y no se reserva nada. Al
+reprogramar, el equipamiento acompaña a la reserva: tiene que alcanzar en el turno
+nuevo, y el total pasa a ser el precio del turno nuevo más los mismos subtotales.
 
 `GET /api/reservas` acepta filtros por query string, combinables:
 
@@ -386,7 +407,8 @@ ese campo es obligatorio.
 **No hay `DELETE` a propósito**: cancelar no es borrar. La reserva cancelada se
 conserva como historial y su turno vuelve a la lista de libres.
 
-Cada reserva viaja con su `evento` incluido (o `null`) y con sus `pagos`.
+Cada reserva viaja con su `evento` incluido (o `null`), con sus `pagos` y con
+su `equipamientos` (cada fila con el artículo incluido).
 
 Una reserva **nace `PENDIENTE`** y la confirman sus pagos: pasa a `CONFIRMADA`
 cuando la suma de los que no están anulados cubre el precio total. Ver Pagos.
@@ -467,7 +489,7 @@ como en reservas.
 | `401 Unauthorized` | La sesión no sirve: falta el token, venció, no es válido o la cuenta está dada de baja |
 | `403 Forbidden` | La sesión sirve, pero ese usuario no puede hacer eso |
 | `404 Not Found` | El recurso pedido no existe |
-| `409 Conflict` | Choca con el estado actual: turno ya tomado, registro referenciado por otro, reserva ya cancelada |
+| `409 Conflict` | Choca con el estado actual: turno ya tomado, equipamiento que no alcanza, registro referenciado por otro, reserva ya cancelada |
 | `500 Internal Server Error` | Error inesperado del servidor |
 
 Los errores salen **siempre** con la misma forma, en español:
@@ -486,9 +508,10 @@ o desde JetBrains con su cliente HTTP integrado.
 ## Estado del proyecto
 
 Implementados de punta a punta: **TipoCancha**, **TipoEvento**, **Cancha**,
-**Horario**, **Usuario**, **Evento** y **Pago**, el catálogo **Rol** de solo
-lectura, y los casos de uso de **reservar una cancha**, **gestionar reservas**
-(reprogramar y cancelar) y **registrar el pago de una reserva**.
+**Horario**, **Usuario**, **Evento**, **Pago** y **Equipamiento**, el catálogo
+**Rol** de solo lectura, y los casos de uso de **reservar una cancha** (con
+equipamiento), **gestionar reservas** (reprogramar y cancelar) y **registrar el
+pago de una reserva**.
 
 Todo eso está cubierto por tests: los unitarios sobre las reglas del negocio y
 las validaciones, y los de integración sobre la API completa contra una base de

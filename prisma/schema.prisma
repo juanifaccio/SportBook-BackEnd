@@ -151,6 +151,10 @@ model Reserva {
   evento Evento?
 
   pagos Pago[]
+
+  // Lo que se alquila además de la cancha. Se elige al reservar y su subtotal
+  // forma parte del precio total.
+  equipamientos ReservaEquipamiento[]
 }
 
 /// Cómo se cobró. Es un enum y no un texto libre para que la base rechace
@@ -227,6 +231,36 @@ model Equipamiento {
   // cantidad alquilada y se suma al total de la reserva.
   precio      Decimal @db.Decimal(10, 2)
   // Cuántas unidades tiene el complejo. Cero es un valor válido: un artículo
-  // agotado sigue estando en el catálogo.
+  // agotado sigue estando en el catálogo. Reservar no lo descuenta: una reserva
+  // ocupa sus unidades solo durante su turno (ver `ReservaEquipamiento`).
   stock       Int
+
+  reservas ReservaEquipamiento[]
+}
+
+/// Cuántas unidades de un artículo se llevan en una reserva.
+///
+/// El stock del artículo no se toca al reservar: son las unidades que tiene el
+/// complejo, y una reserva las ocupa solo mientras dura su turno. Lo disponible
+/// para un turno es el stock menos lo que alquilan las reservas no canceladas
+/// del mismo día cuyo horario se superpone. Así, cancelar libera las unidades
+/// sin tener que devolver nada, y una pelota reservada para diciembre sigue
+/// sirviendo para el partido de hoy.
+model ReservaEquipamiento {
+  id       Int     @id @default(autoincrement())
+  cantidad Int
+  // Precio del artículo por la cantidad. Es una copia, como el resto de los
+  // datos de la reserva: si el artículo cambia de precio después, lo que ya se
+  // reservó no tiene que cambiar de total.
+  subtotal Decimal @db.Decimal(10, 2)
+
+  reservaId Int
+  reserva   Reserva @relation(fields: [reservaId], references: [id])
+
+  equipamientoId Int
+  equipamiento   Equipamiento @relation(fields: [equipamientoId], references: [id])
+
+  // El mismo artículo dos veces en una reserva es una sola fila con más
+  // cantidad.
+  @@unique([reservaId, equipamientoId])
 }

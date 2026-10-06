@@ -24,6 +24,32 @@ const FORMATO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
  */
 const TURNO_OCUPADO = 'TURNO_OCUPADO';
 
+/**
+ * Marca del error que se lanza dentro de la transacción cuando el equipamiento
+ * pedido no existe o no alcanza para el turno. Lleva `respuesta` con el código y
+ * el mensaje, porque son dos casos distintos (400 y 409).
+ */
+const EQUIPAMIENTO_INVALIDO = 'EQUIPAMIENTO_INVALIDO';
+
+/**
+ * Código con el que Prisma reporta que la base abortó la transacción por un
+ * conflicto con otra que corría a la vez. Ver `OPCIONES_CON_EQUIPAMIENTO`.
+ */
+const CODIGO_CONFLICTO = 'P2034';
+
+/**
+ * Las transacciones que reparten equipamiento corren serializables.
+ *
+ * El candado del turno no alcanza: dos reservas de turnos distintos pero
+ * superpuestos —dos canchas a la misma hora— pueden pedir la última pelota a la
+ * vez, y cada una contaría lo alquilado sin ver a la otra. Serializable hace que
+ * la base las ordene: si se pisan, aborta una de las dos y esa responde 409.
+ *
+ * Solo se usa cuando la reserva lleva equipamiento: las que no, no compiten por
+ * nada más que el turno, y ese ya lo resuelve el `updateMany` condicional.
+ */
+const OPCIONES_CON_EQUIPAMIENTO = { isolationLevel: 'Serializable' };
+
 /** Estado con el que nace una reserva. Ver el comentario del enum en el schema. */
 const ESTADO_INICIAL = 'PENDIENTE';
 
@@ -78,6 +104,216 @@ const precioDe = (horario) => {
     const horas = (minutosDe(horario.horaFin) - minutosDe(horario.horaInicio)) / 60;
 
     return Math.round(Number(horario.cancha.precioPorHora) * horas * 100) / 100;
+};
+
+/** Suma dos importes redondeando a centavos, por lo mismo que `precioDe`. */
+const sumarImportes = (a, b) => Math.round((Number(a) + Number(b)) * 100) / 100;
+
+/** Precio del artículo por la cantidad que se lleva, redondeado a centavos. */
+const subtotalDe = (precio, cantidad) => Math.round(Number(precio) * cantidad * 100) / 100;
+
+/**
+ * Valida el equipamiento que llega al reservar. Es opcional: si no viene, la
+ * reserva es la cancha y nada más. Devuelve `{ mensaje }` si algo no cumple o
+ * `{ items }` con los pedidos ya convertidos a número.
+ */
+const validarEquipamientos = (lista) => {
+    if (lista === undefined || lista === null) {
+        return { items: [] };
+    }
+
+    if (!Array.isArray(lista)) {
+        return { mensaje: 'El equipamiento debe ser una lista' };
+    }
+
+    const items = [];
+
+    for (const pedido of lista) {
+        const equipamientoId = Number(pedido?.equipamientoId);
+        const cantidad = Number(pedido?.cantidad);
+
+        if (!Number.isInteger(equipamientoId)) {
+            return { mensaje: 'Cada artículo debe indicar un equipamiento' };
+        }
+
+        // Las unidades se prestan enteras, y pedir cero de algo es no pedirlo.
+        if (!Number.isInteger(cantidad) || cantidad < 1) {
+            return { mensaje: 'La cantidad de cada artículo debe ser un número entero mayor a cero' };
+        }
+
+        // Se rechaza en vez de sumarlo: dos renglones del mismo artículo son casi
+        // seguro un error de quien armó el pedido, y adivinar cuál quiso es peor.
+        if (items.some((item) => item.equipamientoId === equipamientoId)) {
+            return { mensaje: 'Un artículo no puede aparecer dos veces en la misma reserva' };
+        }
+
+        items.push({ equipamientoId, cantidad });
+    }
+
+    return { items };
+};
+
+/**
+ * Cuántas unidades de cada artículo ya están alquiladas, a partir de las filas
+ * de `ReservaEquipamiento` que ocupan el turno. Devuelve un `Map` de id a total.
+ */
+const sumarAlquilado = (filas) => {
+    const alquilado = new Map();
+
+    for (const fila of filas) {
+        alquilado.set(fila.equipamientoId, (alquilado.get(fila.equipamientoId) ?? 0) + fila.cantidad);
+    }
+
+    return alquilado;
+};
+
+/** Unidades de un artículo que quedan libres para un turno. Nunca negativas. */
+const disponiblesDe = (equipamiento, alquilado) =>
+    Math.max(0, equipamiento.stock - (alquilado.get(equipamiento.id) ?? 0));
+
+/**
+ * Comprueba que lo pedido exista y alcance para el turno, y arma las filas de
+ * `ReservaEquipamiento` con su subtotal.
+ *
+ * `equipamientos` son los artículos pedidos tal como están en la base y
+ * `alquilado`, lo que ya ocupan las otras reservas del turno (ver
+ * `alquiladoEnTurno`). Devuelve `{ codigo, mensaje }` si algo falla, o
+ * `{ filas, total }`.
+ */
+const armarEquipamientos = (items, equipamientos, alquilado) => {
+    const filas = [];
+    let total = 0;
+
+    for (const item of items) {
+        const equipamiento = equipamientos.find((candidato) => candidato.id === item.equipamientoId);
+
+        // Llega en el cuerpo del request, así que es un dato inválido del
+        // cliente y no un recurso faltante.
+        if (!equipamiento) {
+            return { codigo: 400, mensaje: 'El equipamiento indicado no existe' };
+        }
+
+        if (disponiblesDe(equipamiento, alquilado) < item.cantidad) {
+            return {
+                codigo: 409,
+                mensaje: `No quedan suficientes unidades de ${equipamiento.nombre} para ese turno`
+            };
+        }
+
+        const subtotal = subtotalDe(equipamiento.precio, item.cantidad);
+
+        filas.push({ equipamientoId: item.equipamientoId, cantidad: item.cantidad, subtotal });
+        total = sumarImportes(total, subtotal);
+    }
+
+    return { filas, total };
+};
+
+/**
+ * Lee lo que ya está alquilado durante un turno: las filas de equipamiento de las
+ * reservas no canceladas del mismo día cuyo horario se superpone. Dos horarios se
+ * superponen cuando cada uno empieza antes de que termine el otro, el mismo
+ * criterio que usa `horario.controller.js` para los turnos de una cancha; acá no
+ * importa la cancha, porque las pelotas son del complejo.
+ *
+ * `db` es el cliente de Prisma o la transacción en curso. `reservaIdExcluida` es
+ * la reserva que se está reprogramando, que no compite consigo misma.
+ *
+ * Se exporta porque el listado de equipamiento la usa para mostrar cuántas
+ * unidades quedan: así la regla vive en un solo lugar.
+ */
+const alquiladoEnTurno = async (db, turno, equipamientoIds, reservaIdExcluida) => {
+    const filas = await db.reservaEquipamiento.findMany({
+        where: {
+            ...(equipamientoIds ? { equipamientoId: { in: equipamientoIds } } : {}),
+            reserva: {
+                estado: {
+                    not: ESTADO_CANCELADA
+                },
+                fecha: turno.fecha,
+                horaInicio: {
+                    lt: turno.horaFin
+                },
+                horaFin: {
+                    gt: turno.horaInicio
+                },
+                ...(reservaIdExcluida ? { id: { not: reservaIdExcluida } } : {})
+            }
+        },
+        select: {
+            equipamientoId: true,
+            cantidad: true
+        }
+    });
+
+    return sumarAlquilado(filas);
+};
+
+/**
+ * Dentro de una transacción: trae los artículos pedidos, lo que ya está
+ * alquilado en el turno, y arma las filas. Si algo no da, lanza el centinela
+ * `EQUIPAMIENTO_INVALIDO` para abortar la transacción entera —la reserva no
+ * puede quedar hecha sin el equipamiento que se pidió con ella—.
+ */
+const reservarEquipamiento = async (tx, turno, items, reservaIdExcluida) => {
+    if (items.length === 0) {
+        return { filas: [], total: 0 };
+    }
+
+    const ids = items.map((item) => item.equipamientoId);
+
+    const equipamientos = await tx.equipamiento.findMany({
+        where: {
+            id: {
+                in: ids
+            }
+        }
+    });
+
+    const alquilado = await alquiladoEnTurno(tx, turno, ids, reservaIdExcluida);
+    const resultado = armarEquipamientos(items, equipamientos, alquilado);
+
+    if (resultado.mensaje) {
+        const error = new Error(EQUIPAMIENTO_INVALIDO);
+
+        error.respuesta = { codigo: resultado.codigo, mensaje: resultado.mensaje };
+
+        throw error;
+    }
+
+    return resultado;
+};
+
+/**
+ * Responde los errores que se lanzan desde las transacciones de alta y
+ * reprogramación. Devuelve `true` si era uno de ellos y ya respondió.
+ */
+const responderErrorDeTransaccion = (error, res) => {
+    if (error.message === TURNO_OCUPADO) {
+        res.status(409).json({
+            mensaje: 'El turno ya fue reservado'
+        });
+
+        return true;
+    }
+
+    if (error.message === EQUIPAMIENTO_INVALIDO) {
+        res.status(error.respuesta.codigo).json({
+            mensaje: error.respuesta.mensaje
+        });
+
+        return true;
+    }
+
+    if (error.code === CODIGO_CONFLICTO) {
+        res.status(409).json({
+            mensaje: 'El equipamiento se acaba de reservar para ese horario, probá de nuevo'
+        });
+
+        return true;
+    }
+
+    return false;
 };
 
 /**
@@ -157,6 +393,14 @@ const aRespuesta = (reserva) => ({
         ...pago,
         monto: Number(pago.monto),
         fecha: pago.fecha.toISOString().slice(0, 10)
+    })),
+    equipamientos: reserva.equipamientos?.map((fila) => ({
+        ...fila,
+        subtotal: Number(fila.subtotal),
+        equipamiento: fila.equipamiento && {
+            ...fila.equipamiento,
+            precio: Number(fila.equipamiento.precio)
+        }
     }))
 });
 
@@ -168,6 +412,8 @@ const aRespuesta = (reserva) => ({
  * El evento va por el mismo motivo: el detalle lo muestra y el alta de un evento
  * necesita saber qué reservas todavía no tienen uno. Viene `null` en la mayoría
  * de las reservas, que son un partido y nada más.
+ *
+ * El equipamiento, con el artículo de cada fila, también lo muestra el detalle.
  */
 const RELACIONES = {
     usuario: true,
@@ -182,7 +428,12 @@ const RELACIONES = {
             tipoEvento: true
         }
     },
-    pagos: true
+    pagos: true,
+    equipamientos: {
+        include: {
+            equipamiento: true
+        }
+    }
 };
 
 /**
@@ -269,9 +520,14 @@ const buscarReservaModificable = async (idCrudo, solicitante) => {
         return { codigo: 400, mensaje: 'El id debe ser un número' };
     }
 
+    // El equipamiento hace falta al reprogramar: hay que volver a comprobar que
+    // alcance en el turno nuevo.
     const reserva = await prisma.reserva.findUnique({
         where: {
             id: id
+        },
+        include: {
+            equipamientos: true
         }
     });
 
@@ -350,6 +606,10 @@ const listarReservas = async (req, res) => {
  * cliente, cualquiera podría reservar a nombre de otro. La excepción es el
  * administrador, que reserva desde el mostrador para quien se lo pide, y por eso
  * es el único que puede mandar `usuarioId`.
+ *
+ * El equipamiento viaja en el mismo request —y no en uno aparte, como el
+ * evento— porque cambia el precio total: la reserva y lo que se alquila con ella
+ * se guardan juntos o no se guarda nada.
  */
 const crearReserva = async (req, res) => {
     try {
@@ -365,6 +625,14 @@ const crearReserva = async (req, res) => {
         if (isNaN(usuarioId)) {
             return res.status(400).json({
                 mensaje: 'El usuario es obligatorio'
+            });
+        }
+
+        const { mensaje: equipamientoInvalido, items } = validarEquipamientos(req.body.equipamientos);
+
+        if (equipamientoInvalido) {
+            return res.status(400).json({
+                mensaje: equipamientoInvalido
             });
         }
 
@@ -430,22 +698,27 @@ const crearReserva = async (req, res) => {
                 throw new Error(TURNO_OCUPADO);
             }
 
+            const equipamiento = await reservarEquipamiento(tx, horario, items);
+            const datos = datosDelTurno(horario);
+
             return tx.reserva.create({
                 data: {
-                    ...datosDelTurno(horario),
+                    ...datos,
+                    precioTotal: sumarImportes(datos.precioTotal, equipamiento.total),
                     estado: ESTADO_INICIAL,
-                    usuarioId: usuarioId
+                    usuarioId: usuarioId,
+                    equipamientos: {
+                        create: equipamiento.filas
+                    }
                 },
                 include: RELACIONES
             });
-        });
+        }, items.length > 0 ? OPCIONES_CON_EQUIPAMIENTO : undefined);
 
         res.status(201).json(aRespuesta(reserva));
     } catch (error) {
-        if (error.message === TURNO_OCUPADO) {
-            return res.status(409).json({
-                mensaje: 'El turno ya fue reservado'
-            });
+        if (responderErrorDeTransaccion(error, res)) {
+            return;
         }
 
         console.error(error);
@@ -581,11 +854,33 @@ const actualizarReserva = async (req, res) => {
                 }
             });
 
+            // Lo alquilado viaja con la reserva, así que tiene que alcanzar
+            // también en el turno nuevo. La reserva se excluye del conteo: si el
+            // turno nuevo se superpone con el viejo, no compite consigo misma.
+            await reservarEquipamiento(
+                tx,
+                horario,
+                reserva.equipamientos.map(({ equipamientoId, cantidad }) => ({ equipamientoId, cantidad })),
+                reserva.id
+            );
+
+            // El precio del turno se vuelve a copiar, pero el del equipamiento
+            // no: sus subtotales son lo que se cobró al reservarlo, y reprogramar
+            // cambia el horario, no lo que se alquiló.
+            const datos = datosDelTurno(horario);
+            const totalEquipamiento = reserva.equipamientos.reduce(
+                (total, fila) => sumarImportes(total, fila.subtotal),
+                0
+            );
+
             const conNuevoTurno = await tx.reserva.update({
                 where: {
                     id: reserva.id
                 },
-                data: datosDelTurno(horario),
+                data: {
+                    ...datos,
+                    precioTotal: sumarImportes(datos.precioTotal, totalEquipamiento)
+                },
                 include: RELACIONES
             });
 
@@ -608,14 +903,12 @@ const actualizarReserva = async (req, res) => {
                 },
                 include: RELACIONES
             });
-        });
+        }, reserva.equipamientos.length > 0 ? OPCIONES_CON_EQUIPAMIENTO : undefined);
 
         res.json(aRespuesta(actualizada));
     } catch (error) {
-        if (error.message === TURNO_OCUPADO) {
-            return res.status(409).json({
-                mensaje: 'El turno ya fue reservado'
-            });
+        if (responderErrorDeTransaccion(error, res)) {
+            return;
         }
 
         console.error(error);
@@ -696,5 +989,12 @@ module.exports = {
     armarFiltro,
     saldoDe,
     estadoSegunPagos,
-    aRespuesta
+    aRespuesta,
+    subtotalDe,
+    sumarImportes,
+    validarEquipamientos,
+    sumarAlquilado,
+    disponiblesDe,
+    armarEquipamientos,
+    alquiladoEnTurno
 };
