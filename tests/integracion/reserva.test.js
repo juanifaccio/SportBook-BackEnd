@@ -265,7 +265,7 @@ describe('reservas', () => {
     });
   });
 
-  describe('PUT /api/reservas/:id — reprogramar', () => {
+  describe('PUT /api/reservas/:id (reprogramar)', () => {
     let reserva;
 
     beforeEach(async () => {

@@ -15,7 +15,7 @@ const {
 const pelota = { id: 1, nombre: 'Pelota de fútbol', precio: '1500.00', stock: 10 };
 const pechera = { id: 2, nombre: 'Pechera', precio: '800.50', stock: 4 };
 
-describe('reserva con equipamiento — reglas del negocio', () => {
+describe('reserva con equipamiento: reglas del negocio', () => {
   describe('subtotalDe', () => {
     it('multiplica el precio por la cantidad', () => {
       assert.equal(subtotalDe(1500, 3), 4500);

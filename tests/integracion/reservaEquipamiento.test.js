@@ -219,7 +219,7 @@ describe('reservas con equipamiento', () => {
     });
   });
 
-  describe('PUT /api/reservas/:id — reprogramar', () => {
+  describe('PUT /api/reservas/:id (reprogramar)', () => {
     it('conserva el equipamiento y lo suma al precio del turno nuevo', async () => {
       const { body: reserva } = await reservar(datos.turnoLibre.id, pelotas(2));
 

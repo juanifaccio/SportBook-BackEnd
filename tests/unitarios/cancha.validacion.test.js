@@ -11,7 +11,7 @@ const cuerpo = (cambios = {}) => ({
   ...cambios
 });
 
-describe('cancha — validación', () => {
+describe('cancha: validación', () => {
   describe('validarDatos', () => {
     it('acepta una cancha bien formada', () => {
       assert.deepEqual(validarDatos(cuerpo()), {

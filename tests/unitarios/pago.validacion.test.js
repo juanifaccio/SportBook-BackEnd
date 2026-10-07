@@ -10,7 +10,7 @@ const cuerpo = (cambios = {}) => ({
   ...cambios
 });
 
-describe('pago — validación', () => {
+describe('pago: validación', () => {
   describe('validarDatos', () => {
     it('acepta un pago bien formado', () => {
       assert.deepEqual(validarDatos(cuerpo()), {
