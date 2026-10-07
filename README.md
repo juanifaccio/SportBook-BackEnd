@@ -1,4 +1,4 @@
-# SportBook — Backend
+# SportBook Backend
 
 API REST de **SportBook**, una aplicación web para gestionar reservas de canchas
 deportivas dentro de un complejo (canchas, horarios, reservas, equipamiento,
@@ -60,8 +60,8 @@ cd SportBook-BackEnd
 npm install
 ```
 
-Al terminar, `npm install` genera además el cliente de Prisma —el código con el
-que la aplicación habla con la base—. No necesita el `.env` ni la base de datos,
+Al terminar, `npm install` genera además el cliente de Prisma (el código con el
+que la aplicación habla con la base). No necesita el `.env` ni la base de datos,
 así que los tests unitarios (`npm test`) ya se pueden correr desde acá.
 
 ## Configuración
@@ -88,7 +88,7 @@ como el CLI de Prisma para las migraciones. No hay credenciales escritas en el
 código.
 
 `JWT_SECRET` no tiene valor por defecto a propósito: uno escrito en el código
-sería público —está en el repositorio— y cualquiera podría firmarse un token de
+sería público (está en el repositorio) y cualquiera podría firmarse un token de
 administrador. Generá el tuyo con:
 
 ```bash
@@ -164,8 +164,8 @@ npm test
 
 ### Integración
 
-Le pegan por HTTP a la API entera —rutas, middlewares, controladores y Prisma
-contra MySQL— para comprobar lo que solo se ve al juntar las piezas: que sin
+Le pegan por HTTP a la API entera (rutas, middlewares, controladores y Prisma
+contra MySQL) para comprobar lo que solo se ve al juntar las piezas: que sin
 token no se entra a ningún lado, que un cliente no llega a la reserva de otro,
 que dos personas no pueden quedarse con el mismo turno, y que cancelar lo
 devuelve a la lista de libres.
@@ -241,7 +241,7 @@ src/
   middlewares/        se ejecutan antes del controlador: sesión y permisos
   routes/             mapea verbo + URL a la función del controlador
   controllers/        valida la entrada, opera y arma la respuesta JSON
-  generated/prisma/   cliente generado por Prisma — no se edita ni se versiona
+  generated/prisma/   cliente generado por Prisma: no se edita ni se versiona
 tests/
   unitarios/          reglas de negocio y validaciones, sin base ni servidor
   integracion/        peticiones HTTP contra la API entera y la base real
@@ -252,7 +252,7 @@ tests/
 
 Todos los recursos cuelgan de `/api`. Los cuerpos y las respuestas son JSON.
 
-### Autenticación — `/api/auth`
+### Autenticación (`/api/auth`)
 
 | Verbo | URL | Qué hace |
 |---|---|---|
@@ -279,7 +279,7 @@ el momento y no cuando le venza la sesión.
 
 **Perfil propio.** Los dos `PUT` van sobre el usuario de la sesión y no sobre un
 `:id`: el id no llega del cliente, así que no puede ser el de otro. No piden
-ningún rol —cualquiera con sesión gestiona su cuenta—, pero sí acotan **qué** se
+ningún rol (cualquiera con sesión gestiona su cuenta), pero sí acotan **qué** se
 puede cambiar.
 
 `PUT /api/auth/yo` recibe `{ nombre, email, telefono }`. Es una lista blanca:
@@ -308,11 +308,11 @@ Los dos roles del catálogo `Rol` son los niveles de acceso:
 
 Un `CLIENTE` consulta canchas y turnos porque los necesita para reservar, pero no
 los administra. Sus reservas son suyas: el listado le devuelve solamente las
-propias —aunque filtre por `?usuarioId=` de otro—, y pedir, reprogramar o
+propias (aunque filtre por `?usuarioId=` de otro), y pedir, reprogramar o
 cancelar una ajena responde `403`. Al reservar, el dueño sale de la sesión y no
 del cuerpo del pedido.
 
-### Tipos de cancha — `/api/tipos-cancha`
+### Tipos de cancha (`/api/tipos-cancha`)
 
 | Verbo | URL | Qué hace |
 |---|---|---|
@@ -324,12 +324,12 @@ del cuerpo del pedido.
 
 Cuerpo: `{ nombre, descripcion }`. El nombre es único.
 
-### Tipos de evento — `/api/tipos-evento`
+### Tipos de evento (`/api/tipos-evento`)
 
 Los mismos cinco endpoints. Cuerpo: `{ nombre }`, único. No se puede eliminar un
 tipo que ya tiene eventos cargados (`409`).
 
-### Equipamiento — `/api/equipamientos`
+### Equipamiento (`/api/equipamientos`)
 
 Lo que el complejo alquila además de la cancha. Los mismos cinco endpoints.
 Cuerpo: `{ nombre, descripcion, precio, stock }`. El nombre es único y el stock es
@@ -343,14 +343,14 @@ Una reserva ocupa sus unidades solo durante su turno, así que
 stock menos lo que alquilan las reservas no canceladas del mismo día cuyo horario
 se superpone con ese turno.
 
-### Canchas — `/api/canchas`
+### Canchas (`/api/canchas`)
 
 Los mismos cinco endpoints. Cuerpo:
 `{ nombre, precioPorHora, estado, tipoCanchaId }`, donde `estado` es
 `DISPONIBLE` o `MANTENIMIENTO`. El listado incluye el tipo de cancha de cada
 una.
 
-### Horarios — `/api/horarios`
+### Horarios (`/api/horarios`)
 
 Son los turnos de una cancha. Los mismos cinco endpoints. Cuerpo:
 `{ fecha, horaInicio, horaFin, canchaId }`, con la fecha como `"AAAA-MM-DD"` y
@@ -364,7 +364,7 @@ las horas como `"HH:mm"`. No se admiten turnos solapados en la misma cancha.
 | `fecha` | `/api/horarios?fecha=2026-09-01` |
 | `disponible` | `/api/horarios?disponible=true` |
 
-### Roles — `/api/roles`
+### Roles (`/api/roles`)
 
 | Verbo | URL | Qué hace |
 |---|---|---|
@@ -375,7 +375,7 @@ niveles de acceso del login. No tiene alta, baja ni modificación a propósito.
 Solo lo consultan los administradores, que son quienes asignan el rol al dar de
 alta un usuario.
 
-### Usuarios — `/api/usuarios`
+### Usuarios (`/api/usuarios`)
 
 Los mismos cinco endpoints. Cuerpo:
 `{ nombre, email, contrasena, telefono, activo, rolId }`. El email es único y se
@@ -383,7 +383,7 @@ normaliza a minúsculas. La contraseña se guarda hasheada con bcrypt, **nunca
 sale en las respuestas**, y al editar es opcional: si no se envía, se conserva la
 guardada.
 
-### Reservas — `/api/reservas`
+### Reservas (`/api/reservas`)
 
 No es un ABM: es el caso de uso central de la aplicación.
 
@@ -426,7 +426,7 @@ su `equipamientos` (cada fila con el artículo incluido).
 Una reserva **nace `PENDIENTE`** y la confirman sus pagos: pasa a `CONFIRMADA`
 cuando la suma de los que no están anulados cubre el precio total. Ver Pagos.
 
-### Eventos — `/api/eventos`
+### Eventos (`/api/eventos`)
 
 Lo que se festeja o se juega en una reserva: un cumpleaños, un torneo, un partido
 de la liga. Es opcional y **una reserva tiene a lo sumo uno**.
@@ -446,14 +446,14 @@ una operación del negocio, así que si viene se ignora.
 
 `GET /api/eventos` acepta el filtro `reservaId`
 (`/api/eventos?reservaId=4`). Cada evento viaja con su tipo y con la reserva
-entera —cancha, tipo de cancha y usuario— para poder identificarla en el listado.
+entera (cancha, tipo de cancha y usuario) para poder identificarla en el listado.
 
 Los permisos son los de las reservas: un `ADMIN` los ve y los gestiona todos, y un
 `CLIENTE` solo los de sus propias reservas (`403` si intenta con la de otro). Una
 reserva **cancelada** no admite cargarle ni editarle el evento (`409`); borrarlo sí
 se permite, porque es limpiar un dato que ya no aplica.
 
-### Pagos — `/api/pagos`
+### Pagos (`/api/pagos`)
 
 Lo que se cobró por una reserva. Es `N:1` y no `1:1`: la reserva admite **pagos
 parciales**, así que se puede cobrar una seña y el resto después.
@@ -470,15 +470,15 @@ Cuerpo del alta: `{ reservaId, monto, metodo }`, donde `metodo` es `EFECTIVO`,
 `TARJETA` o `TRANSFERENCIA`. La **fecha y el estado los pone el servidor**: un
 pago se registra el día en que se cobra y nace `REGISTRADO`.
 
-El `PUT` recibe solo `{ metodo }`. El monto de un pago no se edita —para eso se
-anula y se registra el correcto— y la reserva tampoco, porque un pago no se muda.
+El `PUT` recibe solo `{ metodo }`. El monto de un pago no se edita (para eso se
+anula y se registra el correcto) y la reserva tampoco, porque un pago no se muda.
 
 `GET /api/pagos` acepta los filtros `reservaId` y `estado`, combinables.
 
 **El estado de la reserva se deriva de sus pagos.** Registrar o anular uno lo
 recalcula dentro de la misma transacción: si lo pagado cubre el precio total, la
 reserva queda `CONFIRMADA`; si no, `PENDIENTE`. Una reserva `CANCELADA` no vuelve
-sola —cancelar es una decisión, no algo que se derive de la plata— y tampoco
+sola (cancelar es una decisión, no algo que se derive de la plata) y tampoco
 admite pagos nuevos (`409`). Reprogramar copia el precio del turno nuevo, así que
 una reserva paga que se mueve a un turno más caro vuelve a `PENDIENTE`.
 
@@ -488,8 +488,8 @@ negativo que el sistema no sabe devolver.
 **No hay `DELETE` a propósito**, por el mismo motivo que en reservas: un pago es
 un registro de plata y se conserva como historial. Anular no es borrar.
 
-Los permisos están partidos: **registrar, corregir y anular son del `ADMIN`** —la
-plata la cobra el complejo, no la declara el cliente—, y la lectura va por dueño,
+Los permisos están partidos: **registrar, corregir y anular son del `ADMIN`** (la
+plata la cobra el complejo, no la declara el cliente), y la lectura va por dueño,
 como en reservas.
 
 ### Códigos de respuesta

@@ -33,7 +33,7 @@ const turno = (cambios = {}) => ({
   }
 });
 
-describe('reserva — reglas del negocio', () => {
+describe('reserva: reglas del negocio', () => {
   describe('minutosDe', () => {
     it('pasa la hora del reloj a minutos desde la medianoche', () => {
       assert.equal(minutosDe('00:00'), 0);

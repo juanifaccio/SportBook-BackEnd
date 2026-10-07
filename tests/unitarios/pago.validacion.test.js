@@ -10,7 +10,7 @@ const cuerpo = (cambios = {}) => ({
   ...cambios
 });
 
-describe('pago — validación', () => {
+describe('pago: validación', () => {
   describe('validarDatos', () => {
     it('acepta un pago bien formado', () => {
       assert.deepEqual(validarDatos(cuerpo()), {
@@ -47,7 +47,7 @@ describe('pago — validación', () => {
       assert.match(validarDatos(cuerpo({ metodo: 'efectivo' })).mensaje, /EFECTIVO/);
     });
 
-    // La fecha la pone el servidor —un pago se registra cuando se cobra— y el
+    // La fecha la pone el servidor (un pago se registra cuando se cobra) y el
     // estado nace REGISTRADO.
     it('descarta la fecha y el estado aunque vengan en el cuerpo', () => {
       const { datos } = validarDatos(cuerpo({ fecha: '2020-01-01', estado: 'ANULADO' }));

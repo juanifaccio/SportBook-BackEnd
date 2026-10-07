@@ -10,8 +10,8 @@ const { prisma, verificarBaseDePrueba, limpiar, sembrar, autorizacion } = requir
  *
  * El alta, la edición y la baja las recorre `tipoCancha.test.js`, que es la
  * implementación de referencia del proyecto y hace el mismo camino; lo que se
- * prueba acá es lo propio de este listado —el filtro, el orden y el tipo que
- * viaja anidado— más los niveles de acceso, que en canchas están partidos:
+ * prueba acá es lo propio de este listado (el filtro, el orden y el tipo que
+ * viaja anidado) más los niveles de acceso, que en canchas están partidos:
  * leerlas lo puede hacer cualquiera que tenga sesión porque reservar arranca
  * eligiendo una, y administrarlas es del complejo.
  */

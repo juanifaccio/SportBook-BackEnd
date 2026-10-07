@@ -20,7 +20,7 @@ const cuerpo = (cambios = {}) => ({
   ...cambios
 });
 
-describe('usuario — validación', () => {
+describe('usuario: validación', () => {
   describe('validarDatos', () => {
     it('acepta un usuario bien formado', () => {
       assert.deepEqual(validarDatos(cuerpo(), ALTA), {

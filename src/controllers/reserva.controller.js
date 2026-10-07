@@ -2,8 +2,8 @@ const prisma = require('../config/prisma');
 const ROLES = require('../config/roles');
 
 /**
- * Una reserva es de quien la hizo. El administrador ve y gestiona todas —es el
- * mostrador del complejo—; el cliente, solo las suyas.
+ * Una reserva es de quien la hizo. El administrador ve y gestiona todas (es el
+ * mostrador del complejo); el cliente, solo las suyas.
  *
  * Este control no puede vivir en las rutas como el del resto de los recursos:
  * ahí se sabe qué se está pidiendo, pero no de quién es la reserva que hay del
@@ -41,7 +41,7 @@ const CODIGO_CONFLICTO = 'P2034';
  * Las transacciones que reparten equipamiento corren serializables.
  *
  * El candado del turno no alcanza: dos reservas de turnos distintos pero
- * superpuestos —dos canchas a la misma hora— pueden pedir la última pelota a la
+ * superpuestos (dos canchas a la misma hora) pueden pedir la última pelota a la
  * vez, y cada una contaría lo alquilado sin ver a la otra. Serializable hace que
  * la base las ordene: si se pisan, aborta una de las dos y esa responde 409.
  *
@@ -252,8 +252,8 @@ const alquiladoEnTurno = async (db, turno, equipamientoIds, reservaIdExcluida) =
 /**
  * Dentro de una transacción: trae los artículos pedidos, lo que ya está
  * alquilado en el turno, y arma las filas. Si algo no da, lanza el centinela
- * `EQUIPAMIENTO_INVALIDO` para abortar la transacción entera —la reserva no
- * puede quedar hecha sin el equipamiento que se pidió con ella—.
+ * `EQUIPAMIENTO_INVALIDO` para abortar la transacción entera (la reserva no
+ * puede quedar hecha sin el equipamiento que se pidió con ella).
  */
 const reservarEquipamiento = async (tx, turno, items, reservaIdExcluida) => {
     if (items.length === 0) {
@@ -607,8 +607,8 @@ const listarReservas = async (req, res) => {
  * administrador, que reserva desde el mostrador para quien se lo pide, y por eso
  * es el único que puede mandar `usuarioId`.
  *
- * El equipamiento viaja en el mismo request —y no en uno aparte, como el
- * evento— porque cambia el precio total: la reserva y lo que se alquila con ella
+ * El equipamiento viaja en el mismo request (y no en uno aparte, como el
+ * evento) porque cambia el precio total: la reserva y lo que se alquila con ella
  * se guardan juntos o no se guarda nada.
  */
 const crearReserva = async (req, res) => {
@@ -793,8 +793,8 @@ const actualizarReserva = async (req, res) => {
             });
         }
 
-        // Sin esto, reprogramar al mismo turno liberaría el turno viejo —que es
-        // el mismo— después de haberlo tomado, y la reserva quedaría ocupando un
+        // Sin esto, reprogramar al mismo turno liberaría el turno viejo (que es
+        // el mismo) después de haberlo tomado, y la reserva quedaría ocupando un
         // turno marcado como libre.
         if (horarioId === reserva.horarioId) {
             return res.status(400).json({

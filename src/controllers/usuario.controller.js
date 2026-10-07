@@ -10,8 +10,8 @@ const CODIGO_CLAVE_FORANEA = 'P2003';
 
 /**
  * Formato mínimo de un email: algo, arroba, dominio con al menos un punto. No
- * pretende validar la especificación completa —eso solo lo confirma mandar un
- * mail—, sino frenar los errores de tipeo evidentes.
+ * pretende validar la especificación completa (eso solo lo confirma mandar un
+ * mail), sino frenar los errores de tipeo evidentes.
  */
 const FORMATO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -118,7 +118,7 @@ const validarDatos = (body, esEdicion) => {
  * La contraseña tampoco entra: se cambia por su propio endpoint, que además pide
  * la actual.
  *
- * Vive acá y no en `auth.controller.js` —donde están los handlers del perfil—
+ * Vive acá y no en `auth.controller.js` (donde están los handlers del perfil)
  * para que las reglas de los campos de Usuario estén todas en un solo lugar: el
  * mismo email mal escrito tiene que quejarse igual en el ABM y en el perfil.
  */

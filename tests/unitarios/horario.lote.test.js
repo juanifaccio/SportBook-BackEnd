@@ -17,7 +17,7 @@ const cuerpo = (cambios = {}) => ({
   ...cambios
 });
 
-describe('horario — generación de turnos en lote', () => {
+describe('horario: generación de turnos en lote', () => {
   describe('generarTurnos', () => {
     it('parte el rango en turnos consecutivos de la duración pedida', () => {
       assert.deepEqual(generarTurnos('08:00', '11:00', 60), [

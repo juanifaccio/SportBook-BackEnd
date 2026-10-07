@@ -11,7 +11,7 @@ const cuerpo = (cambios = {}) => ({
   ...cambios
 });
 
-describe('equipamiento — validación', () => {
+describe('equipamiento: validación', () => {
   describe('validarDatos', () => {
     it('acepta un equipamiento bien formado', () => {
       assert.deepEqual(validarDatos(cuerpo()), {

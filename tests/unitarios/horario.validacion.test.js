@@ -13,7 +13,7 @@ const cuerpo = (cambios = {}) => ({
   ...cambios
 });
 
-describe('horario — validación del turno', () => {
+describe('horario: validación del turno', () => {
   describe('validarDatos', () => {
     it('acepta un turno bien formado y lo devuelve normalizado', () => {
       assert.deepEqual(validarDatos(cuerpo()), {

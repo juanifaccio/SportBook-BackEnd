@@ -9,8 +9,8 @@ const ROLES = require('../src/config/roles');
  *
  * Con el login puesto, la API no se puede usar sin una cuenta, y las cuentas las
  * da de alta un administrador: una base recién migrada no tendría por dónde
- * entrar. Esto lo resuelve sin dejar credenciales en el repositorio —salen del
- * `.env`, como la conexión a la base— ni en una migración, que quedaría
+ * entrar. Esto lo resuelve sin dejar credenciales en el repositorio (salen del
+ * `.env`, como la conexión a la base) ni en una migración, que quedaría
  * versionada con el hash adentro.
  *
  * Es idempotente y no pisa nada: si el email ya está registrado no lo toca. Un

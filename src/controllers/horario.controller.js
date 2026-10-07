@@ -131,7 +131,7 @@ const aTextoHora = (minutos) => {
  * Parte un rango horario en turnos consecutivos de `duracion` minutos.
  *
  * El último turno se descarta si no entra completo: si el rango no es múltiplo
- * de la duración —de 08:00 a 13:00 en turnos de 90 minutos—, estirarlo pasaría
+ * de la duración (de 08:00 a 13:00 en turnos de 90 minutos), estirarlo pasaría
  * del horario que pidió el administrador y recortarlo dejaría a la venta un
  * turno más corto que los demás al mismo precio por hora.
  */

@@ -10,7 +10,7 @@ const cuerpo = (cambios = {}) => ({
   ...cambios
 });
 
-describe('evento — validación', () => {
+describe('evento: validación', () => {
   describe('validarDatos', () => {
     it('acepta un evento bien formado', () => {
       assert.deepEqual(validarDatos(cuerpo()), {

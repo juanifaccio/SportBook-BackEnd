@@ -265,7 +265,7 @@ describe('reservas', () => {
     });
   });
 
-  describe('PUT /api/reservas/:id — reprogramar', () => {
+  describe('PUT /api/reservas/:id (reprogramar)', () => {
     let reserva;
 
     beforeEach(async () => {
@@ -415,7 +415,7 @@ describe('reservas', () => {
     let vieja;
 
     beforeEach(async () => {
-      // No se puede crear por la API —justamente porque el turno ya pasó—, así
+      // No se puede crear por la API (justamente porque el turno ya pasó), así
       // que se inserta directo: es el estado en el que queda cualquier reserva
       // cuando le llega la hora.
       await prisma.horario.update({ where: { id: datos.turnoPasado.id }, data: { disponible: false } });

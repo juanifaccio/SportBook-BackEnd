@@ -7,8 +7,8 @@ const { prisma, verificarBaseDePrueba, limpiar, sembrar, autorizacion } = requir
 
 /**
  * El evento que se le declara a una reserva: qué se viene a hacer y cuánta gente
- * va. Lo que solo se ve al juntar las piezas es de quién es cada evento —el
- * permiso depende del dueño de la reserva del otro lado— y qué pasa cuando la
+ * va. Lo que solo se ve al juntar las piezas es de quién es cada evento (el
+ * permiso depende del dueño de la reserva del otro lado) y qué pasa cuando la
  * reserva ya no admite cambios.
  */
 describe('eventos de una reserva', () => {

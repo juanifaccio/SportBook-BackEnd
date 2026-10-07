@@ -13,7 +13,7 @@ const ROLES = require('../config/roles');
 const router = express.Router();
 
 // Todo el recurso pide sesión: cualquiera que la tenga puede consultar el
-// catálogo —lo necesita para elegir dónde jugar—, pero administrarlo es cosa
+// catálogo (lo necesita para elegir dónde jugar), pero administrarlo es cosa
 // del complejo.
 router.use(autenticar);
 

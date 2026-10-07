@@ -1,7 +1,7 @@
 const prisma = require('../config/prisma');
 const ROLES = require('../config/roles');
 // Del controller de reservas salen tres cosas: las conversiones de la reserva
-// anidada —sutiles, y dos copias se terminan desincronizando— y las dos reglas
+// anidada (sutiles, y dos copias se terminan desincronizando) y las dos reglas
 // que definen su estado a partir de lo pagado. Esas viven allá porque el estado
 // de la reserva es asunto de la reserva; la dependencia va en un solo sentido.
 const {
@@ -23,8 +23,8 @@ const ESTADO_ANULADO = 'ANULADO';
 const RESERVA_CANCELADA = 'CANCELADA';
 
 /**
- * Un pago es de quien es su reserva. El administrador los ve todos —es el
- * mostrador del complejo— y es el único que puede registrarlos o anularlos: la
+ * Un pago es de quien es su reserva. El administrador los ve todos (es el
+ * mostrador del complejo) y es el único que puede registrarlos o anularlos: la
  * plata la cobra el complejo, no la declara el cliente.
  */
 const esAdmin = (usuario) => usuario.rol.nombre === ROLES.ADMIN;
@@ -78,8 +78,8 @@ const aRespuesta = (pago) => ({
 /**
  * Valida los campos del cuerpo y los devuelve ya normalizados.
  *
- * `fecha` y `estado` no entran: el día lo pone el servidor —un pago se registra
- * cuando se cobra— y el estado nace REGISTRADO. `reservaId` se valida solo en el
+ * `fecha` y `estado` no entran: el día lo pone el servidor (un pago se registra
+ * cuando se cobra) y el estado nace REGISTRADO. `reservaId` se valida solo en el
  * alta: un pago no se muda de reserva.
  */
 const validarDatos = (body) => {
@@ -323,8 +323,8 @@ const obtenerPago = async (req, res) => {
 /**
  * Corrige cómo se cobró un pago ya registrado.
  *
- * Lo único editable es el método: el monto de un pago no se edita —para eso se
- * anula y se registra el correcto— y la reserva tampoco, porque un pago no se
+ * Lo único editable es el método: el monto de un pago no se edita (para eso se
+ * anula y se registra el correcto) y la reserva tampoco, porque un pago no se
  * muda. Con el monto fijo, esta operación no puede cambiar el estado de la
  * reserva.
  */
