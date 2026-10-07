@@ -81,7 +81,7 @@ const buscarTurnoDelFiltro = async (query) => {
 
     // A diferencia del filtro por tipo de las canchas, acá un turno inexistente
     // sí es un error: no es una búsqueda sin resultados, sino una pregunta
-    // —cuánto queda libre en este turno— que no tiene respuesta.
+    // (cuánto queda libre en este turno) que no tiene respuesta.
     if (!horario) {
         return { codigo: 404, mensaje: 'Turno no encontrado' };
     }

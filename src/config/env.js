@@ -1,12 +1,12 @@
 const path = require('node:path');
 
 // El `.env` se busca a partir de la ubicación de este archivo y no del directorio
-// desde el que se ejecuta el proceso —que es lo que hace dotenv por defecto—,
+// desde el que se ejecuta el proceso (que es lo que hace dotenv por defecto),
 // para que el servidor levante igual arrancándolo desde cualquier carpeta.
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env'), quiet: true });
 
 // Único lugar donde se lee `process.env`. Se valida todo al arrancar, así una
-// variable faltante o mal escrita falla acá —con un mensaje que dice qué hacer—
+// variable faltante o mal escrita falla acá (con un mensaje que dice qué hacer)
 // y no en el primer request contra la base.
 
 const PUERTO_POR_DEFECTO = 3000;
@@ -41,8 +41,8 @@ const leerPuerto = () => {
   return puerto;
 };
 
-// La conexión llega como una sola URL —la misma que usa el CLI de Prisma para
-// las migraciones— y se desarma acá. Repetir host, usuario y contraseña en
+// La conexión llega como una sola URL (la misma que usa el CLI de Prisma para
+// las migraciones) y se desarma acá. Repetir host, usuario y contraseña en
 // variables sueltas dejaría dos configuraciones que pueden terminar apuntando a
 // bases distintas.
 const leerBaseDeDatos = () => {
@@ -82,7 +82,7 @@ const leerBaseDeDatos = () => {
 
 // El secreto de firma es lo único que separa un token legítimo de uno fabricado,
 // así que no tiene valor por defecto: sin él el servidor no arranca. Uno
-// hardcodeado como reserva sería público —está en el repo— y cualquiera podría
+// hardcodeado como reserva sería público (está en el repo) y cualquiera podría
 // firmarse un token de administrador.
 const leerJwt = () => {
   const secreto = requerida('JWT_SECRET');

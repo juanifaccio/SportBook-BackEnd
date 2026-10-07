@@ -14,7 +14,7 @@ const { diaRelativo } = require('./fechas');
 /**
  * Los tests de integración borran todas las tablas, así que antes de tocar nada
  * se comprueba contra qué base están apuntando. Sin esta guarda, un `.env.test`
- * mal armado —o directamente ausente— vaciaría la base de desarrollo.
+ * mal armado (o directamente ausente) vaciaría la base de desarrollo.
  *
  * El criterio es el nombre: una base de pruebas termina en `_test`.
  */

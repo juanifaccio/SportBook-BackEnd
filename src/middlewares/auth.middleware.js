@@ -33,7 +33,7 @@ const autenticar = async (req, res, next) => {
     contenido = jwt.verify(token, configJwt.secreto);
   } catch (error) {
     // Tanto un token vencido como uno con la firma cambiada terminan acá: al
-    // cliente le sirve lo mismo en los dos casos —volver a iniciar sesión— y
+    // cliente le sirve lo mismo en los dos casos (volver a iniciar sesión) y
     // distinguirlos solo le diría a quien lo fabricó qué le falló.
     return res.status(401).json({
       mensaje: 'La sesión expiró o el token no es válido. Iniciá sesión de nuevo.'

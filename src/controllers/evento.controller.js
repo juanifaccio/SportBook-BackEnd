@@ -15,7 +15,7 @@ const ESTADO_CANCELADA = 'CANCELADA';
 
 /**
  * Un evento es de quien es su reserva. El administrador los ve y los gestiona
- * todos —es el mostrador del complejo—; el cliente, solo los de sus reservas.
+ * todos (es el mostrador del complejo); el cliente, solo los de sus reservas.
  *
  * Igual que en reservas, este control no puede vivir en las rutas: ahí se sabe
  * qué se está pidiendo, pero no de quién es la reserva que hay del otro lado.
@@ -35,7 +35,7 @@ const normalizar = (texto) => (typeof texto === 'string' ? texto.trim() : '');
 
 /**
  * Relaciones que acompañan al evento en todas las respuestas. La reserva viaja
- * entera —con su cancha, su tipo de cancha y su usuario— porque el listado del
+ * entera (con su cancha, su tipo de cancha y su usuario) porque el listado del
  * ABM tiene que poder identificar a cuál de todas pertenece el evento, y pedirla
  * aparte sería una consulta más por fila.
  */

@@ -13,8 +13,8 @@ const router = express.Router();
 
 // Acá no alcanza con el rol: las cuatro operaciones las puede pedir tanto un
 // administrador como un cliente, pero el cliente solo sobre sus propias
-// reservas. Esa parte no se puede resolver mirando la URL —hay que ver de quién
-// es la reserva—, así que la aplica el controller.
+// reservas. Esa parte no se puede resolver mirando la URL (hay que ver de quién
+// es la reserva), así que la aplica el controller.
 router.use(autenticar);
 
 router.get('/', listarReservas);

@@ -12,8 +12,8 @@ const conToken = (token) => crearReq({ headers: { authorization: `Bearer ${token
 const usuarioConRol = (nombre) => ({ id: 1, nombre: 'Alguien', rol: { id: 1, nombre } });
 
 describe('middlewares/auth', () => {
-  // Los casos que sí llegan a consultar la base —usuario borrado, dado de baja,
-  // cambio de rol— se cubren en `tests/integracion/auth.test.js`, donde hay una
+  // Los casos que sí llegan a consultar la base (usuario borrado, dado de baja,
+  // cambio de rol) se cubren en `tests/integracion/auth.test.js`, donde hay una
   // base de verdad contra la que releerlo. Acá quedan los que se resuelven antes
   // de tocarla, que son los que deciden si el request sigue o no.
   describe('autenticar', () => {

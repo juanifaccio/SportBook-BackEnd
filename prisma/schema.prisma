@@ -165,8 +165,8 @@ enum MetodoPago {
   TRANSFERENCIA
 }
 
-/// Un pago no se borra: se anula. La fila se conserva como historial —es un
-/// registro de plata— y un pago anulado deja de contar para el total pagado, así
+/// Un pago no se borra: se anula. La fila se conserva como historial (es un
+/// registro de plata) y un pago anulado deja de contar para el total pagado, así
 /// que la reserva puede volver a PENDIENTE.
 enum EstadoPago {
   REGISTRADO
@@ -194,7 +194,7 @@ model Pago {
 }
 
 /// Lo que se festeja o se juega en una reserva: un cumpleaños, un torneo, un
-/// partido de la liga. Es un dato del cliente —qué viene a hacer—, no del
+/// partido de la liga. Es un dato del cliente (qué viene a hacer), no del
 /// complejo, y por eso cuelga de la reserva y no del turno: el mismo turno de
 /// las 20:00 sirve para un cumpleaños o para un partido según quién lo reserve.
 model Evento {
