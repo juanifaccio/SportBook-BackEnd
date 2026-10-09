@@ -1,7 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { validarDatos, aRespuesta } = require('../../src/controllers/horario.controller');
+const { validarDatos, validarCambioConReserva, aRespuesta } = require('../../src/controllers/horario.controller');
 const { comoFechaDeBase } = require('../apoyo/fechas');
 
 /** Cuerpo válido de un turno. Cada test rompe un campo y deja el resto en pie. */
@@ -89,6 +89,56 @@ describe('horario: validación del turno', () => {
 
     it('rechaza un disponible que no es booleano', () => {
       assert.match(validarDatos(cuerpo({ disponible: 'true' })).mensaje, /verdadero o falso/);
+    });
+  });
+
+  describe('validarCambioConReserva', () => {
+    /** El turno reservado tal como está guardado: ya no figura disponible. */
+    const reservado = {
+      id: 1,
+      fecha: comoFechaDeBase('2026-09-15'),
+      horaInicio: '10:00',
+      horaFin: '11:00',
+      canchaId: 3,
+      disponible: false
+    };
+
+    /** Lo que llega al editarlo, pasado por `validarDatos` como en el handler. */
+    const cambio = (cambios = {}) => validarDatos(cuerpo({ disponible: false, ...cambios })).datos;
+
+    it('deja guardarlo sin cambios', () => {
+      assert.deepEqual(validarCambioConReserva(reservado, cambio()), {});
+    });
+
+    it('rechaza volver a ofrecerlo', () => {
+      assert.match(validarCambioConReserva(reservado, cambio({ disponible: true })).mensaje, /volver a ofrecer/);
+    });
+
+    // `validarDatos` toma como disponible al turno que llega sin el campo: para
+    // uno reservado, eso es volver a ofrecerlo.
+    it('rechaza guardarlo sin decir que sigue ocupado', () => {
+      const datos = validarDatos(cuerpo()).datos;
+
+      assert.match(validarCambioConReserva(reservado, datos).mensaje, /volver a ofrecer/);
+    });
+
+    it('rechaza moverlo de día', () => {
+      assert.match(validarCambioConReserva(reservado, cambio({ fecha: '2026-09-16' })).mensaje, /cambiar de día/);
+    });
+
+    it('rechaza moverlo de hora', () => {
+      assert.match(
+        validarCambioConReserva(reservado, cambio({ horaInicio: '10:30', horaFin: '11:30' })).mensaje,
+        /cambiar de día/
+      );
+    });
+
+    it('rechaza estirarlo o acortarlo', () => {
+      assert.match(validarCambioConReserva(reservado, cambio({ horaFin: '11:30' })).mensaje, /cambiar de día/);
+    });
+
+    it('rechaza pasarlo a otra cancha', () => {
+      assert.match(validarCambioConReserva(reservado, cambio({ canchaId: 4 })).mensaje, /cambiar de día/);
     });
   });
 
