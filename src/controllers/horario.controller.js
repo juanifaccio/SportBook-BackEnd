@@ -3,6 +3,25 @@ const prisma = require('../config/prisma');
 /** Código con el que Prisma reporta la violación de un índice único. */
 const CODIGO_DUPLICADO = 'P2002';
 
+/** Código con el que Prisma reporta la violación de una clave foránea. */
+const CODIGO_CLAVE_FORANEA = 'P2003';
+
+/**
+ * Código con el que Prisma reporta que la base abortó la transacción por un
+ * conflicto con otra que corría a la vez. Ver `actualizarHorario`.
+ */
+const CODIGO_CONFLICTO = 'P2034';
+
+/**
+ * Marca del error que se lanza dentro de la transacción de `actualizarHorario`
+ * cuando el cambio no se le puede hacer a un turno reservado. Lleva `mensaje`,
+ * porque son dos casos distintos (ver `validarCambioConReserva`).
+ */
+const TURNO_RESERVADO = 'TURNO_RESERVADO';
+
+/** El estado de una reserva que ya no ocupa su turno. */
+const ESTADO_CANCELADA = 'CANCELADA';
+
 /** Formato de la fecha que entra y sale de la API: "AAAA-MM-DD". */
 const FORMATO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -102,6 +121,42 @@ const buscarSolapado = async (datos, idAExcluir) => {
             }
         }
     });
+};
+
+/**
+ * Qué no se le puede cambiar a un turno que tiene una reserva activa. Devuelve
+ * `{ mensaje }` si el cambio no se permite.
+ *
+ * - **Moverlo** de día, de hora o de cancha: la reserva guarda su propia copia de
+ *   esos datos, así que seguiría diciendo el horario viejo, y ese hueco de la
+ *   grilla quedaría sin turno: el administrador podría cargar otro ahí y venderle
+ *   a un segundo cliente la cancha que ya tiene dueño.
+ * - **Volver a ofrecerlo**: marcarlo disponible lo pondría otra vez en la lista
+ *   de libres, y el siguiente que lo eligiera lo reservaría por segunda vez.
+ *
+ * Lo que sí se puede es guardarlo sin cambios. Para liberar el turno está
+ * cancelar la reserva, que es lo que además la deja registrada como cancelada.
+ */
+const validarCambioConReserva = (anterior, datos) => {
+    const loMueve =
+        anterior.fecha.getTime() !== datos.fecha.getTime() ||
+        anterior.horaInicio !== datos.horaInicio ||
+        anterior.horaFin !== datos.horaFin ||
+        anterior.canchaId !== datos.canchaId;
+
+    if (loMueve) {
+        return {
+            mensaje: 'El horario tiene una reserva activa y no se puede cambiar de día, de hora ni de cancha'
+        };
+    }
+
+    if (datos.disponible) {
+        return {
+            mensaje: 'El horario tiene una reserva activa y no se puede volver a ofrecer: para liberarlo, cancelá la reserva'
+        };
+    }
+
+    return {};
 };
 
 /**
@@ -495,18 +550,57 @@ const actualizarHorario = async (req, res) => {
             });
         }
 
-        const horario = await prisma.horario.update({
-            where: {
-                id: id
+        // La reserva se busca en la misma transacción que la escritura, y
+        // serializable: si no, un cliente podría reservar el turno entre la
+        // consulta y el guardado, y el administrador lo volvería a ofrecer sin
+        // enterarse. Así la base ordena las dos operaciones y, si se pisan,
+        // aborta una.
+        const horario = await prisma.$transaction(
+            async (tx) => {
+                const reservaActiva = await tx.reserva.findFirst({
+                    where: {
+                        horarioId: id,
+                        estado: {
+                            not: ESTADO_CANCELADA
+                        }
+                    }
+                });
+
+                if (reservaActiva) {
+                    const { mensaje: motivo } = validarCambioConReserva(horarioExistente, datos);
+
+                    if (motivo) {
+                        throw Object.assign(new Error(TURNO_RESERVADO), { mensaje: motivo });
+                    }
+                }
+
+                return tx.horario.update({
+                    where: {
+                        id: id
+                    },
+                    data: datos,
+                    include: {
+                        cancha: true
+                    }
+                });
             },
-            data: datos,
-            include: {
-                cancha: true
-            }
-        });
+            { isolationLevel: 'Serializable' }
+        );
 
         res.json(aRespuesta(horario));
     } catch (error) {
+        if (error.message === TURNO_RESERVADO) {
+            return res.status(409).json({
+                mensaje: error.mensaje
+            });
+        }
+
+        if (error.code === CODIGO_CONFLICTO) {
+            return res.status(409).json({
+                mensaje: 'El horario se acaba de reservar, probá de nuevo'
+            });
+        }
+
         if (error.code === CODIGO_DUPLICADO) {
             return res.status(409).json({
                 mensaje: 'La cancha ya tiene un horario que empieza a esa hora ese día'
@@ -553,6 +647,15 @@ const eliminarHorario = async (req, res) => {
             mensaje: 'Horario eliminado correctamente'
         });
     } catch (error) {
+        // La FK de Reserva impide borrar un turno que se reservó alguna vez,
+        // aunque la reserva esté cancelada: es su historial. Sin esto el error
+        // de la base saldría como un 500.
+        if (error.code === CODIGO_CLAVE_FORANEA) {
+            return res.status(409).json({
+                mensaje: 'No se puede eliminar el horario porque tiene reservas asociadas'
+            });
+        }
+
         console.error(error);
 
         res.status(500).json({
@@ -574,6 +677,7 @@ module.exports = {
     eliminarHorario,
     validarDatos,
     validarLote,
+    validarCambioConReserva,
     generarTurnos,
     seSolapan,
     aRespuesta

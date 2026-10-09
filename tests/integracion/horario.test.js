@@ -26,6 +26,35 @@ describe('turnos de una cancha', () => {
     await prisma.$disconnect();
   });
 
+  /** Reserva el turno como cliente, por la API, igual que desde `/reservar`. */
+  const reservar = async (horario) => {
+    const respuesta = await request(app)
+      .post('/api/reservas')
+      .set(...autorizacion(datos.cliente))
+      .send({ horarioId: horario.id });
+
+    assert.equal(respuesta.status, 201);
+
+    return respuesta.body;
+  };
+
+  const cancelar = async (reserva) => {
+    const respuesta = await request(app)
+      .put(`/api/reservas/${reserva.id}/cancelar`)
+      .set(...autorizacion(datos.cliente));
+
+    assert.equal(respuesta.status, 200);
+  };
+
+  /** El cuerpo que deja el turno libre de la siembra tal como está. */
+  const sinCambios = (cambios = {}) => ({
+    fecha: datos.turnoLibre.fecha.toISOString().slice(0, 10),
+    horaInicio: datos.turnoLibre.horaInicio,
+    horaFin: datos.turnoLibre.horaFin,
+    canchaId: datos.cancha.id,
+    ...cambios
+  });
+
   const turno = (cambios = {}) => ({
     fecha: OTRO_DIA,
     horaInicio: '18:00',
@@ -394,6 +423,65 @@ describe('turnos de una cancha', () => {
 
       assert.equal(respuesta.status, 409);
     });
+
+    describe('con una reserva activa', () => {
+      beforeEach(async () => {
+        await reservar(datos.turnoLibre);
+      });
+
+      // Es el caso que importa: marcarlo disponible lo devolvería a la lista de
+      // libres y el próximo cliente lo reservaría por segunda vez.
+      it('no lo deja volver a ofrecer', async () => {
+        const respuesta = await request(app)
+          .put(`/api/horarios/${datos.turnoLibre.id}`)
+          .set(...admin)
+          .send(sinCambios({ disponible: true }));
+
+        assert.equal(respuesta.status, 409);
+        assert.match(respuesta.body.mensaje, /reserva activa/);
+
+        const guardado = await prisma.horario.findUnique({ where: { id: datos.turnoLibre.id } });
+
+        assert.equal(guardado.disponible, false);
+      });
+
+      it('no lo deja mover de hora', async () => {
+        const respuesta = await request(app)
+          .put(`/api/horarios/${datos.turnoLibre.id}`)
+          .set(...admin)
+          .send(sinCambios({ horaInicio: '20:00', horaFin: '21:00', disponible: false }));
+
+        assert.equal(respuesta.status, 409);
+
+        const guardado = await prisma.horario.findUnique({ where: { id: datos.turnoLibre.id } });
+
+        assert.equal(guardado.horaInicio, datos.turnoLibre.horaInicio);
+      });
+
+      it('deja guardarlo sin cambios', async () => {
+        const respuesta = await request(app)
+          .put(`/api/horarios/${datos.turnoLibre.id}`)
+          .set(...admin)
+          .send(sinCambios({ disponible: false }));
+
+        assert.equal(respuesta.status, 200);
+      });
+
+      // La reserva cancelada ya no ocupa el turno: vuelve a ser uno cualquiera.
+      it('lo deja mover cuando la reserva se cancela', async () => {
+        const [reserva] = (await request(app).get('/api/reservas').set(...admin)).body;
+
+        await cancelar(reserva);
+
+        const respuesta = await request(app)
+          .put(`/api/horarios/${datos.turnoLibre.id}`)
+          .set(...admin)
+          .send(sinCambios({ horaInicio: '20:00', horaFin: '21:00' }));
+
+        assert.equal(respuesta.status, 200);
+        assert.equal(respuesta.body.horaInicio, '20:00');
+      });
+    });
   });
 
   describe('DELETE /api/horarios/:id', () => {
@@ -406,6 +494,25 @@ describe('turnos de una cancha', () => {
 
     it('responde 404 si el id no existe', async () => {
       assert.equal((await request(app).delete('/api/horarios/999999').set(...admin)).status, 404);
+    });
+
+    it('no borra un turno reservado, con un 409 que dice por qué', async () => {
+      await reservar(datos.turnoLibre);
+
+      const respuesta = await request(app).delete(`/api/horarios/${datos.turnoLibre.id}`).set(...admin);
+
+      assert.equal(respuesta.status, 409);
+      assert.match(respuesta.body.mensaje, /reservas asociadas/);
+      assert.notEqual(await prisma.horario.findUnique({ where: { id: datos.turnoLibre.id } }), null);
+    });
+
+    // La reserva cancelada se conserva como historial y sigue apuntando al turno.
+    it('tampoco uno cuya reserva se canceló', async () => {
+      await cancelar(await reservar(datos.turnoLibre));
+
+      const respuesta = await request(app).delete(`/api/horarios/${datos.turnoLibre.id}`).set(...admin);
+
+      assert.equal(respuesta.status, 409);
     });
   });
 });
