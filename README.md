@@ -10,9 +10,29 @@ Este proyecto es independiente del frontend: se comunica con él únicamente a
 través de esta API, en JSON. El frontend vive en su propio repositorio,
 [SportBook-FrontEnd](https://github.com/juanifaccio/SportBook-FrontEnd).
 
+## Cómo se instala SportBook
+
+La aplicación son dos programas que corren al mismo tiempo, cada uno en su
+terminal, más una base de datos:
+
+```
+Frontend (Angular)  ──HTTP/JSON──►  Backend (Express)  ──Prisma──►  MySQL
+localhost:4200                      localhost:3000                  localhost:3306
+```
+
+El orden importa, porque cada pieza necesita la anterior:
+
+1. Instalar los programas necesarios: Node.js, Git y MySQL ([Requisitos previos](#requisitos-previos)).
+2. Instalar y levantar **este backend** ([Instalación paso a paso](#instalación-paso-a-paso)).
+3. Instalar y levantar el **frontend**, siguiendo el
+   [README de su repositorio](https://github.com/juanifaccio/SportBook-FrontEnd#readme).
+
+Los comandos de esta guía son para **Windows** (PowerShell o el símbolo del
+sistema). Donde cambian en macOS o Linux, se indica.
+
 ## Tecnologías
 
-- [Node.js](https://nodejs.org) 20+ con módulos CommonJS
+- [Node.js](https://nodejs.org) con módulos CommonJS
 - [Express](https://expressjs.com) 5 como framework web
 - [Prisma](https://www.prisma.io) 7 como ORM, con el adaptador
   [`@prisma/adapter-mariadb`](https://www.npmjs.com/package/@prisma/adapter-mariadb)
@@ -21,32 +41,98 @@ través de esta API, en JSON. El frontend vive en su propio repositorio,
 - [bcryptjs](https://www.npmjs.com/package/bcryptjs) para hashear contraseñas
 - [jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken) para los tokens de
   sesión (JWT)
-- [`node:test`](https://nodejs.org/api/test.html), el runner que trae Node, para
-  los tests, con [supertest](https://www.npmjs.com/package/supertest) para
-  pedirle a la API por HTTP
 
 ## Requisitos previos
 
-- **Node.js 20.19 o superior** y **npm 10 o superior**. El mínimo lo pone Prisma
-  7, que admite `^20.19 || ^22.12 || >=24`: una 20 anterior a la 20.19 no sirve.
-  El proyecto se desarrolla sobre el **LTS 24**, que es lo recomendable si estás
-  instalando de cero. Verificalo con:
+Tres programas, los tres obligatorios. Después de instalar cada uno, **cerrá la
+terminal y abrí una nueva**: Windows actualiza el `PATH` recién en las terminales
+nuevas, y hasta entonces los comandos no se reconocen.
 
-  ```bash
-  node --version
-  ```
+### Node.js
 
-- Un **servidor MySQL 8 corriendo**, al que puedas conectarte. No hace falta
-  crear la base ni las tablas a mano: de eso se encarga la migración de Prisma
-  más abajo. Verificá que el servicio esté levantado con:
+Es el motor con el que corre el backend, y trae `npm`, con el que se instalan las
+dependencias.
 
-  ```bash
-  mysqladmin --user=root --password status
-  ```
+- Descargalo de <https://nodejs.org> eligiendo la versión **LTS (24.x)**. Es con la
+  que se desarrolla el proyecto y sirve tanto para el backend como para el
+  frontend.
+- Este backend necesita como mínimo **Node.js 20.19** (lo exige Prisma 7, que
+  admite `^20.19 || ^22.12 || >=24`). El frontend pide una versión más nueva, así
+  que si ya tenés Node instalado, revisá también los requisitos de su README.
 
-## Instalación
+Verificá que quedó instalado (los dos tienen que responder un número de versión):
 
-Cloná el repositorio, entrá a su carpeta e instalá las dependencias:
+```bash
+node --version
+```
+
+```bash
+npm --version
+```
+
+### Git
+
+Para descargar (clonar) el repositorio.
+
+- Descargalo de <https://git-scm.com/downloads> y dejá las opciones que vienen
+  por defecto en el instalador.
+
+```bash
+git --version
+```
+
+### MySQL 8
+
+Es la base de datos. Tiene que haber un **servidor MySQL corriendo** en la
+máquina (o accesible en la red).
+
+1. Descargá el **MySQL Installer for Windows** de
+   <https://dev.mysql.com/downloads/installer/> (el archivo más grande, el que no
+   dice *web*) y en el instalador elegí **MySQL Server 8.x**. El tipo de
+   instalación puede ser *Server only*.
+2. Dejá el puerto por defecto, **3306**.
+3. En *Accounts and Roles*, **anotá la contraseña que le ponés al usuario
+   `root`**: va en la configuración del backend, más abajo.
+4. En *Windows Service*, dejá tildado que MySQL **arranque como servicio** junto
+   con Windows. Así está disponible cada vez que prendés la máquina y no hay que
+   levantarlo a mano.
+
+No hace falta crear la base de datos ni las tablas: de eso se encarga Prisma en
+la instalación.
+
+Para comprobar que el servidor está corriendo, en PowerShell:
+
+```bash
+Get-Service MySQL*
+```
+
+Tiene que aparecer con estado `Running`. Si dice `Stopped`, iniciá el servicio
+desde la aplicación *Servicios* de Windows.
+
+> **¿Sirve XAMPP, MariaDB o Docker?** El backend habla el protocolo de MySQL, así
+> que en principio sí, pero el proyecto **está probado contra MySQL 8**. Si algo
+> se comporta raro con otra cosa, probá primero con MySQL 8.
+
+### Si PowerShell no deja ejecutar `npm`
+
+En un Windows recién instalado es común que el primer `npm` responda algo como
+*"No se puede cargar el archivo ...\npm.ps1 porque la ejecución de scripts está
+deshabilitada en este sistema"*. Se resuelve una sola vez, habilitando los
+scripts para tu usuario:
+
+```bash
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+La alternativa es usar el **símbolo del sistema** (`cmd`) en lugar de
+PowerShell, donde no pasa.
+
+## Instalación paso a paso
+
+### 1. Descargar el proyecto
+
+Ubicate en la carpeta donde quieras guardar el proyecto, cloná el repositorio y
+entrá a su carpeta:
 
 ```bash
 git clone https://github.com/juanifaccio/SportBook-BackEnd.git
@@ -56,169 +142,200 @@ git clone https://github.com/juanifaccio/SportBook-BackEnd.git
 cd SportBook-BackEnd
 ```
 
+Todos los comandos que siguen se corren **parado en esta carpeta**.
+
+> Evitá carpetas sincronizadas con OneDrive o Google Drive (en Windows,
+> *Documentos* y *Escritorio* suelen estarlo): se pelean con los miles de
+> archivos de `node_modules` y la instalación se vuelve lenta o falla.
+
+### 2. Instalar las dependencias
+
 ```bash
 npm install
 ```
 
-Al terminar, `npm install` genera además el cliente de Prisma (el código con el
-que la aplicación habla con la base). No necesita el `.env` ni la base de datos,
-así que los tests unitarios (`npm test`) ya se pueden correr desde acá.
+Tarda unos minutos la primera vez. Al terminar aparece la carpeta
+`node_modules/` y queda generado el cliente de Prisma (el código con el que la
+aplicación habla con la base).
 
-## Configuración
+### 3. Crear el archivo de configuración
 
 Toda la configuración del backend sale de un archivo `.env` en la raíz del
-proyecto. Hay una plantilla versionada, `.env.example`: copiala y completá los
-valores con los de tu máquina.
+proyecto. Ese archivo no viene en el repositorio porque tiene contraseñas, pero
+sí viene una plantilla, `.env.example`. Copiala con el nombre `.env`:
+
+```bash
+copy .env.example .env
+```
+
+En macOS, Linux o Git Bash:
 
 ```bash
 cp .env.example .env
 ```
 
+> El archivo tiene que llamarse exactamente `.env`, sin nada antes ni después.
+> Si lo creás o lo guardás con el Bloc de notas, fijate que no quede como
+> `.env.txt`.
+
+### 4. Completar la configuración
+
+Abrí el `.env` con cualquier editor de texto y completá estos valores:
+
 | Variable | Obligatoria | Qué es |
 |---|---|---|
 | `DATABASE_URL` | Sí | Conexión a MySQL, en formato `mysql://usuario:contrasena@host:puerto/base` |
-| `JWT_SECRET` | Sí | Secreto con el que se firman los tokens de sesión. Mínimo 32 caracteres |
+| `JWT_SECRET` | Sí | Secreto con el que se firman las sesiones. Mínimo 32 caracteres |
+| `ADMIN_EMAIL` | Sí, para el paso 6 | Email del administrador con el que vas a entrar a la aplicación |
+| `ADMIN_CONTRASENA` | Sí, para el paso 6 | Su contraseña |
 | `PORT` | No | Puerto en el que escucha la API. Si no está, se usa `3000` |
 | `JWT_EXPIRACION` | No | Cuánto dura la sesión (`30m`, `8h`, `7d`). Si no está, 8 horas |
-| `ADMIN_EMAIL` | Solo el seed | Email del administrador inicial que crea `npm run seed` |
-| `ADMIN_CONTRASENA` | Solo el seed | Su contraseña |
 
-`DATABASE_URL` es la **única** fuente de la conexión: la usan tanto el servidor
-como el CLI de Prisma para las migraciones. No hay credenciales escritas en el
-código.
+**`DATABASE_URL`**: reemplazá `usuario` y `contrasena` por los de tu MySQL. Si
+seguiste los pasos de arriba, el usuario es `root` y la contraseña es la que
+anotaste al instalarlo. El nombre de la base del final (`sportsbook`) **no tiene
+que existir**: la crea el paso siguiente.
 
-`JWT_SECRET` no tiene valor por defecto a propósito: uno escrito en el código
-sería público (está en el repositorio) y cualquiera podría firmarse un token de
-administrador. Generá el tuyo con:
+```
+DATABASE_URL=mysql://root:tuContrasena@localhost:3306/sportsbook
+```
+
+> Si la contraseña de MySQL tiene alguno de los caracteres `@ : / # ? %`, hay
+> que escribirlo codificado, porque si no rompe el formato de la URL: `@` se
+> escribe `%40`, `:` es `%3A`, `/` es `%2F`, `#` es `%23`, `?` es `%3F` y `%` es
+> `%25`. Por ejemplo, la contraseña `Pass@123` va como `Pass%40123`.
+
+**`JWT_SECRET`**: el valor que trae la plantilla es un ejemplo y tiene que
+reemplazarse. Generá uno aleatorio con este comando y pegalo en el archivo:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
-El `.env` **no se versiona** (está en `.gitignore`), porque contiene
-credenciales; el que sí se versiona es `.env.example`, que no las tiene.
+**`ADMIN_EMAIL` y `ADMIN_CONTRASENA`**: son el usuario y la contraseña con los que
+vas a entrar a la aplicación la primera vez. Podés dejar los de la plantilla o
+poner los tuyos, pero **decidilos ahora**: el paso 6 crea la cuenta con lo que
+diga el archivo en ese momento.
 
-Si falta una variable o viene mal escrita, el servidor no arranca y explica cuál
-es el problema, en vez de fallar más tarde contra la base.
+Guardá el archivo. Si falta una variable o viene mal escrita, el servidor no
+arranca y explica cuál es el problema.
 
-## Crear la base de datos
-
-Con el `.env` listo, un solo comando crea la base, aplica todas las migraciones y
-genera el cliente de Prisma:
+### 5. Crear la base de datos
 
 ```bash
 npm run prisma:migrate
 ```
 
-Esto deja las tablas creadas y siembra el catálogo de roles con `ADMIN` y
-`CLIENTE`. El resto de las tablas quedan vacías.
+Este comando crea la base de datos con todas sus tablas y carga los dos roles de
+la aplicación (`ADMIN` y `CLIENTE`). El resto de las tablas quedan vacías.
 
-## Crear el administrador inicial
+Tiene que terminar con un mensaje del estilo *"Your database is now in sync with
+your schema"*. Si en cambio da un error de conexión o de acceso, revisá
+[Problemas frecuentes](#problemas-frecuentes).
 
-La API pide iniciar sesión, y las cuentas las da de alta un administrador: sin
-uno, a una base recién migrada no se puede entrar. Este comando crea el primero,
-con el email y la contraseña que pusiste en `ADMIN_EMAIL` y `ADMIN_CONTRASENA`:
+> El usuario de MySQL del `DATABASE_URL` tiene que tener permiso para crear
+> bases de datos: Prisma crea una base temporal para controlar las migraciones.
+> `root` lo tiene.
+
+### 6. Crear el administrador inicial
+
+La aplicación pide iniciar sesión, y las cuentas nuevas las da de alta un
+administrador: sin uno, a una base recién creada no se puede entrar. Este comando
+crea el primero, con el `ADMIN_EMAIL` y el `ADMIN_CONTRASENA` del `.env`:
 
 ```bash
 npm run seed
 ```
 
-Se puede correr las veces que haga falta: si el email ya está registrado, no lo
-toca. A partir de ahí, el resto de los usuarios se cargan desde el frontend o con
-las peticiones de `requests.http`.
+Tiene que responder `Administrador inicial creado: <tu email>`. Se puede correr
+las veces que haga falta: si el email ya está registrado, avisa y no lo toca.
 
-## Ejecución
-
-Para levantar el servidor:
+### 7. Levantar el servidor
 
 ```bash
 npm start
 ```
 
-La API queda escuchando en `http://localhost:3000`, o en el puerto que hayas
-puesto en `PORT`. Para comprobar que arrancó bien:
+Tiene que responder `Servidor ejecutándose en http://localhost:3000`.
 
-```bash
-curl http://localhost:3000
+**Dejá esta terminal abierta**: mientras el servidor corre, la terminal queda
+ocupada, y si la cerrás, la aplicación deja de funcionar. Para apagarlo, `Ctrl+C`.
+
+Para comprobar que anda, abrí <http://localhost:3000> en el navegador. Tiene que
+mostrar:
+
+```json
+{"mensaje":"SportBook Backend funcionando"}
 ```
 
-Debería responder `{"mensaje":"SportBook Backend funcionando"}`.
+### 8. Seguir con el frontend
 
-## Tests
+Con el backend corriendo, abrí **otra terminal** y seguí con el
+[README del frontend](https://github.com/juanifaccio/SportBook-FrontEnd#readme).
 
-Hay dos suites, con el runner que trae Node (`node:test`). Se separan porque
-necesitan cosas distintas: una corre en cualquier lado y la otra necesita una
-base de datos.
+## Las veces siguientes
 
-### Unitarios
-
-Cubren las reglas del negocio y las validaciones: el cálculo del precio de una
-reserva, si un turno ya empezó, los formatos de fecha y hora, la validación de
-cada formulario, la lectura de las variables de ambiente y el middleware de
-sesión. No tocan la base ni levantan el servidor, así que no hace falta
-configurar nada:
+Lo de arriba se hace una sola vez. Para volver a usar la aplicación otro día
+alcanza con levantar el servidor desde la carpeta del proyecto (MySQL arranca
+solo con Windows):
 
 ```bash
-npm test
+npm start
 ```
 
-### Integración
+Si descargás cambios nuevos del repositorio (`git pull`), corré otra vez
+`npm install` y, si entre los cambios hay carpetas nuevas en
+`prisma/migrations/`, también `npm run prisma:migrate`.
 
-Le pegan por HTTP a la API entera (rutas, middlewares, controladores y Prisma
-contra MySQL) para comprobar lo que solo se ve al juntar las piezas: que sin
-token no se entra a ningún lado, que un cliente no llega a la reserva de otro,
-que dos personas no pueden quedarse con el mismo turno, y que cancelar lo
-devuelve a la lista de libres.
+## Problemas frecuentes
 
-Necesitan **una base aparte de la de desarrollo**, porque vacían todas las tablas
-antes de cada suite. Se configura una sola vez:
+**`Falta la variable de entorno DATABASE_URL`** (o `JWT_SECRET`). No existe el
+`.env` o le falta ese valor. Revisá los pasos 3 y 4, y que el archivo no se llame
+`.env.txt`.
+
+**`JWT_SECRET tiene que tener al menos 32 caracteres`.** Quedó un valor corto.
+Generá uno con el comando del paso 4.
+
+**`Can't reach database server`, `P1001` o `ECONNREFUSED`.** El servidor MySQL no
+está corriendo, o el host o el puerto del `DATABASE_URL` no son los suyos.
+Comprobá el servicio (ver [MySQL 8](#mysql-8)) y que el puerto sea `3306`.
+
+**`Access denied for user`, `P1000` o `ER_ACCESS_DENIED_ERROR`.** El usuario o la
+contraseña del `DATABASE_URL` no son los de tu MySQL. Si la contraseña tiene
+caracteres especiales, revisá que estén codificados (paso 4).
+
+**`Cannot find module '.prisma/client/default'`** o **`@prisma/client did not
+initialize yet`.** Falta generar el cliente de Prisma. Se genera con:
 
 ```bash
-cp .env.test.example .env.test
+npm run prisma:generate
 ```
 
-Completá el `DATABASE_URL` de ese archivo con las credenciales de tu MySQL y un
-nombre de base **terminado en `_test`** (por ejemplo `sportsbook_test`). Ese
-sufijo no es una convención decorativa: `npm run test:preparar` y los propios
-tests se niegan a correr si la base no lo tiene, para que un archivo mal
-configurado no se lleve puestos tus datos de desarrollo.
+**`Error: listen EADDRINUSE: address already in use :::3000`.** El puerto 3000 ya
+está ocupado, casi siempre por otra terminal donde quedó el backend corriendo.
+Cerrala, o cambiá el puerto en el `.env` (`PORT=3001`) teniendo en cuenta que
+entonces hay que avisarle al frontend (ver su README).
 
-Después, crear la base y aplicarle las migraciones:
+**No puedo entrar a la aplicación: "Email o contraseña incorrectos".** Faltó el
+paso 6, o estás usando datos distintos de los que tenía el `.env` cuando lo
+corriste. Si cambiaste el `.env` después, el seed no pisa la cuenta ya creada:
+poné otro `ADMIN_EMAIL` y corré `npm run seed` de nuevo.
 
-```bash
-npm run test:preparar
-```
-
-Y ya se pueden correr:
-
-```bash
-npm run test:integracion
-```
-
-`npm run test:preparar` hay que repetirlo cada vez que se agregue una migración
-nueva. Para correr las dos suites de una: `npm run test:todo`.
-
-> Si alguna vez matás una corrida a la fuerza (`kill -9`, cerrar la terminal de
-> golpe), MySQL conserva abiertas las conexiones del proceso muerto junto con los
-> locks que tuvieran, y la corrida siguiente se queda esperándolos. Se resuelve
-> solo en un rato, o cerrando esas conexiones a mano. Cortando con `Ctrl+C` no
-> pasa: el proceso alcanza a cerrarlas.
+**`mysql` o `mysqladmin` no se reconoce como comando.** No afecta al proyecto: el
+backend se conecta solo y no necesita esos programas. Si los querés usar, agregá
+`C:\Program Files\MySQL\MySQL Server 8.0\bin` al `Path` de Windows.
 
 ## Scripts disponibles
 
 | Comando | Qué hace |
 |---|---|
+| `npm install` | Instala las dependencias y genera el cliente de Prisma |
+| `npm run prisma:migrate` | Crea la base o le aplica las migraciones pendientes, y regenera el cliente |
+| `npm run seed` | Crea el administrador inicial a partir del `.env` |
 | `npm start` | Levanta el servidor en `http://localhost:3000` (o en el puerto de `PORT`) |
 | `npm run dev` | Igual, pero reinicia solo ante cada cambio en el código |
-| `npm run prisma:migrate` | Crea y aplica las migraciones pendientes, y regenera el cliente |
-| `npm install` | Instala las dependencias y genera el cliente de Prisma (`postinstall`) |
 | `npm run prisma:generate` | Regenera el cliente de Prisma (tras editar `schema.prisma`) |
-| `npm run prisma:studio` | Abre Prisma Studio para inspeccionar los datos en el navegador |
-| `npm run seed` | Crea el administrador inicial a partir del `.env` |
-| `npm test` | Corre los tests unitarios (no necesita base de datos) |
-| `npm run test:preparar` | Crea la base de pruebas y le aplica las migraciones |
-| `npm run test:integracion` | Corre los tests de integración contra la base de pruebas |
-| `npm run test:todo` | Corre las dos suites, una después de la otra |
+| `npm run prisma:studio` | Abre Prisma Studio para ver y editar los datos en el navegador |
 
 ## Estructura del proyecto
 
@@ -227,7 +344,7 @@ controlador y del controlador a Prisma, sin saltear niveles.
 
 ```
 .env.example          plantilla de configuración: copiar como .env
-.env.test.example     plantilla de los tests de integración: copiar como .env.test
+requests.http         peticiones de ejemplo para probar la API sin el frontend
 prisma/
   schema.prisma       modelo de datos: única fuente de verdad del esquema
   migrations/         historial versionado de cambios de la base
@@ -242,268 +359,28 @@ src/
   routes/             mapea verbo + URL a la función del controlador
   controllers/        valida la entrada, opera y arma la respuesta JSON
   generated/prisma/   cliente generado por Prisma: no se edita ni se versiona
-tests/
-  unitarios/          reglas de negocio y validaciones, sin base ni servidor
-  integracion/        peticiones HTTP contra la API entera y la base real
-  apoyo/              ambiente de los tests, datos sembrados y dobles de Express
 ```
 
 ## API
 
-Todos los recursos cuelgan de `/api`. Los cuerpos y las respuestas son JSON.
+Todos los recursos cuelgan de `/api`, y los cuerpos y las respuestas son JSON.
+Salvo `POST /api/auth/login`, todos los endpoints piden la sesión iniciada.
 
-### Autenticación (`/api/auth`)
-
-| Verbo | URL | Qué hace |
+| Recurso | URL | Qué es |
 |---|---|---|
-| `POST` | `/api/auth/login` | Valida email y contraseña y devuelve el token |
-| `GET` | `/api/auth/yo` | Devuelve el usuario de la sesión en curso |
-| `PUT` | `/api/auth/yo` | Actualiza los datos del usuario de la sesión |
-| `PUT` | `/api/auth/yo/contrasena` | Cambia su contraseña |
+| Sesión | `/api/auth` | Inicio de sesión y perfil propio |
+| Tipos de cancha | `/api/tipos-cancha` | Catálogo de tipos (fútbol 5, pádel...) |
+| Tipos de evento | `/api/tipos-evento` | Catálogo de tipos (cumpleaños, torneo...) |
+| Equipamiento | `/api/equipamientos` | Lo que el complejo alquila además de la cancha |
+| Canchas | `/api/canchas` | Las canchas del complejo, filtrables por tipo |
+| Horarios | `/api/horarios` | Los turnos de cada cancha |
+| Roles | `/api/roles` | Los niveles de acceso (solo lectura) |
+| Usuarios | `/api/usuarios` | Las cuentas de la aplicación |
+| Reservas | `/api/reservas` | Reservar un turno, reprogramarlo y cancelarlo |
+| Eventos | `/api/eventos` | Lo que se festeja o se juega en una reserva |
+| Pagos | `/api/pagos` | Lo cobrado por cada reserva |
 
-`POST /api/auth/login` recibe `{ email, contrasena }` y responde
-`{ token, usuario }`. **Es el único endpoint público**: todos los demás piden el
-token en la cabecera `Authorization`.
-
-```
-Authorization: Bearer <token>
-```
-
-El token es un JWT firmado con `JWT_SECRET` que vence según `JWT_EXPIRACION`. No
-hay endpoint de logout: como el servidor no guarda las sesiones, cerrar sesión es
-que el cliente descarte el token.
-
-En cada petición el usuario se vuelve a leer de la base en lugar de confiar en lo
-que dice el token: así, dar de baja o cambiarle el rol a alguien tiene efecto en
-el momento y no cuando le venza la sesión.
-
-**Perfil propio.** Los dos `PUT` van sobre el usuario de la sesión y no sobre un
-`:id`: el id no llega del cliente, así que no puede ser el de otro. No piden
-ningún rol (cualquiera con sesión gestiona su cuenta), pero sí acotan **qué** se
-puede cambiar.
-
-`PUT /api/auth/yo` recibe `{ nombre, email, telefono }`. Es una lista blanca:
-`rolId`, `activo` y `contrasena` se descartan aunque vengan en el cuerpo. Sin
-eso, un cliente se ascendería a administrador con un `PUT` a sus propios datos.
-El email sigue siendo único (`409`).
-
-`PUT /api/auth/yo/contrasena` recibe `{ contrasenaActual, contrasenaNueva }`.
-Pide la actual porque, si no, alcanzaría un token prestado para cambiarle la
-clave al dueño y dejarlo afuera de su cuenta. Si la actual no coincide responde
-**`400`, no `401`**: la sesión sirve, lo que está mal es un dato del formulario, y
-un `401` haría que el frontend cierre la sesión por un error de tipeo. El token
-sigue valiendo después del cambio.
-
-### Niveles de acceso
-
-Los dos roles del catálogo `Rol` son los niveles de acceso:
-
-| | `ADMIN` | `CLIENTE` |
-|---|---|---|
-| Tipos de cancha, tipos de evento, canchas, horarios | Todo | Solo consultar |
-| Usuarios y roles | Todo | Nada |
-| Su propio perfil | Sí | Sí |
-| Reservas | Todas | Solo las suyas |
-| Pagos | Todo | Solo ve los de sus reservas |
-
-Un `CLIENTE` consulta canchas y turnos porque los necesita para reservar, pero no
-los administra. Sus reservas son suyas: el listado le devuelve solamente las
-propias (aunque filtre por `?usuarioId=` de otro), y pedir, reprogramar o
-cancelar una ajena responde `403`. Al reservar, el dueño sale de la sesión y no
-del cuerpo del pedido.
-
-### Tipos de cancha (`/api/tipos-cancha`)
-
-| Verbo | URL | Qué hace |
-|---|---|---|
-| `GET` | `/api/tipos-cancha` | Lista todos |
-| `POST` | `/api/tipos-cancha` | Crea uno |
-| `GET` | `/api/tipos-cancha/:id` | Obtiene uno |
-| `PUT` | `/api/tipos-cancha/:id` | Modifica uno |
-| `DELETE` | `/api/tipos-cancha/:id` | Elimina uno |
-
-Cuerpo: `{ nombre, descripcion }`. El nombre es único.
-
-### Tipos de evento (`/api/tipos-evento`)
-
-Los mismos cinco endpoints. Cuerpo: `{ nombre }`, único. No se puede eliminar un
-tipo que ya tiene eventos cargados (`409`).
-
-### Equipamiento (`/api/equipamientos`)
-
-Lo que el complejo alquila además de la cancha. Los mismos cinco endpoints.
-Cuerpo: `{ nombre, descripcion, precio, stock }`. El nombre es único y el stock es
-un entero donde el cero es válido: un artículo agotado sigue en el catálogo. No se
-puede eliminar un artículo que alguna reserva incluye (`409`): para sacarlo de
-circulación alcanza con dejarle el stock en cero.
-
-El stock son **las unidades que tiene el complejo**, y reservar no lo descuenta.
-Una reserva ocupa sus unidades solo durante su turno, así que
-`GET /api/equipamientos?horarioId=4` agrega a cada artículo `disponibles`: el
-stock menos lo que alquilan las reservas no canceladas del mismo día cuyo horario
-se superpone con ese turno.
-
-### Canchas (`/api/canchas`)
-
-Los mismos cinco endpoints. Cuerpo:
-`{ nombre, precioPorHora, estado, tipoCanchaId }`, donde `estado` es
-`DISPONIBLE` o `MANTENIMIENTO`. El listado incluye el tipo de cancha de cada
-una.
-
-### Horarios (`/api/horarios`)
-
-Son los turnos de una cancha. Los mismos cinco endpoints. Cuerpo:
-`{ fecha, horaInicio, horaFin, canchaId }`, con la fecha como `"AAAA-MM-DD"` y
-las horas como `"HH:mm"`. No se admiten turnos solapados en la misma cancha.
-
-`GET /api/horarios` acepta filtros por query string, combinables:
-
-| Filtro | Ejemplo |
-|---|---|
-| `canchaId` | `/api/horarios?canchaId=3` |
-| `fecha` | `/api/horarios?fecha=2026-09-01` |
-| `disponible` | `/api/horarios?disponible=true` |
-
-### Roles (`/api/roles`)
-
-| Verbo | URL | Qué hace |
-|---|---|---|
-| `GET` | `/api/roles` | Lista los roles |
-
-Es un **catálogo de solo lectura**: los roles se siembran por migración y son los
-niveles de acceso del login. No tiene alta, baja ni modificación a propósito.
-Solo lo consultan los administradores, que son quienes asignan el rol al dar de
-alta un usuario.
-
-### Usuarios (`/api/usuarios`)
-
-Los mismos cinco endpoints. Cuerpo:
-`{ nombre, email, contrasena, telefono, activo, rolId }`. El email es único y se
-normaliza a minúsculas. La contraseña se guarda hasheada con bcrypt, **nunca
-sale en las respuestas**, y al editar es opcional: si no se envía, se conserva la
-guardada.
-
-### Reservas (`/api/reservas`)
-
-No es un ABM: es el caso de uso central de la aplicación.
-
-| Verbo | URL | Qué hace |
-|---|---|---|
-| `GET` | `/api/reservas` | Lista las reservas, de la más nueva a la más vieja |
-| `POST` | `/api/reservas` | Reserva un turno libre |
-| `GET` | `/api/reservas/:id` | Obtiene una |
-| `PUT` | `/api/reservas/:id` | Reprograma a otro turno libre |
-| `PUT` | `/api/reservas/:id/cancelar` | Cancela y libera el turno |
-
-El alta recibe `{ horarioId }` y la reprogramación también: la fecha, las
-horas, la cancha y el precio total se derivan del turno en el servidor, no se
-aceptan del cliente. El dueño de la reserva sale de la sesión; un `ADMIN` puede
-agregar `usuarioId` para reservar a nombre de otro desde el mostrador, y para él
-ese campo es obligatorio.
-
-El alta acepta además, opcional, el equipamiento que se alquila con la reserva:
-`equipamientos: [{ equipamientoId, cantidad }]`. El servidor calcula cada
-subtotal con el precio del artículo y lo suma al precio total. Si no quedan
-suficientes unidades para el turno responde `409` y no se reserva nada. Al
-reprogramar, el equipamiento acompaña a la reserva: tiene que alcanzar en el turno
-nuevo, y el total pasa a ser el precio del turno nuevo más los mismos subtotales.
-
-`GET /api/reservas` acepta filtros por query string, combinables:
-
-| Filtro | Ejemplo |
-|---|---|
-| `canchaId` | `/api/reservas?canchaId=3` |
-| `usuarioId` | `/api/reservas?usuarioId=7` |
-| `fecha` | `/api/reservas?fecha=2026-09-01` |
-| `estado` | `/api/reservas?estado=CONFIRMADA` |
-
-**No hay `DELETE` a propósito**: cancelar no es borrar. La reserva cancelada se
-conserva como historial y su turno vuelve a la lista de libres.
-
-Cada reserva viaja con su `evento` incluido (o `null`), con sus `pagos` y con
-su `equipamientos` (cada fila con el artículo incluido).
-
-Una reserva **nace `PENDIENTE`** y la confirman sus pagos: pasa a `CONFIRMADA`
-cuando la suma de los que no están anulados cubre el precio total. Ver Pagos.
-
-### Eventos (`/api/eventos`)
-
-Lo que se festeja o se juega en una reserva: un cumpleaños, un torneo, un partido
-de la liga. Es opcional y **una reserva tiene a lo sumo uno**.
-
-| Verbo | URL | Qué hace |
-|---|---|---|
-| `GET` | `/api/eventos` | Lista los eventos, del día más nuevo al más viejo |
-| `POST` | `/api/eventos` | Le carga el evento a una reserva |
-| `GET` | `/api/eventos/:id` | Obtiene uno |
-| `PUT` | `/api/eventos/:id` | Modifica uno |
-| `DELETE` | `/api/eventos/:id` | Elimina uno |
-
-Cuerpo del alta: `{ descripcion, cantidadPersonas, tipoEventoId, reservaId }`. La
-cantidad de personas tiene que ser un entero mayor a cero. El `PUT` recibe los
-mismos campos **menos `reservaId`**: mover un evento de una reserva a otra no es
-una operación del negocio, así que si viene se ignora.
-
-`GET /api/eventos` acepta el filtro `reservaId`
-(`/api/eventos?reservaId=4`). Cada evento viaja con su tipo y con la reserva
-entera (cancha, tipo de cancha y usuario) para poder identificarla en el listado.
-
-Los permisos son los de las reservas: un `ADMIN` los ve y los gestiona todos, y un
-`CLIENTE` solo los de sus propias reservas (`403` si intenta con la de otro). Una
-reserva **cancelada** no admite cargarle ni editarle el evento (`409`); borrarlo sí
-se permite, porque es limpiar un dato que ya no aplica.
-
-### Pagos (`/api/pagos`)
-
-Lo que se cobró por una reserva. Es `N:1` y no `1:1`: la reserva admite **pagos
-parciales**, así que se puede cobrar una seña y el resto después.
-
-| Verbo | URL | Qué hace |
-|---|---|---|
-| `GET` | `/api/pagos` | Lista los pagos, del más nuevo al más viejo |
-| `POST` | `/api/pagos` | Registra el cobro de una reserva |
-| `GET` | `/api/pagos/:id` | Obtiene uno |
-| `PUT` | `/api/pagos/:id` | Corrige el método con el que se cobró |
-| `PUT` | `/api/pagos/:id/anular` | Anula el pago y recalcula la reserva |
-
-Cuerpo del alta: `{ reservaId, monto, metodo }`, donde `metodo` es `EFECTIVO`,
-`TARJETA` o `TRANSFERENCIA`. La **fecha y el estado los pone el servidor**: un
-pago se registra el día en que se cobra y nace `REGISTRADO`.
-
-El `PUT` recibe solo `{ metodo }`. El monto de un pago no se edita (para eso se
-anula y se registra el correcto) y la reserva tampoco, porque un pago no se muda.
-
-`GET /api/pagos` acepta los filtros `reservaId` y `estado`, combinables.
-
-**El estado de la reserva se deriva de sus pagos.** Registrar o anular uno lo
-recalcula dentro de la misma transacción: si lo pagado cubre el precio total, la
-reserva queda `CONFIRMADA`; si no, `PENDIENTE`. Una reserva `CANCELADA` no vuelve
-sola (cancelar es una decisión, no algo que se derive de la plata) y tampoco
-admite pagos nuevos (`409`). Reprogramar copia el precio del turno nuevo, así que
-una reserva paga que se mueve a un turno más caro vuelve a `PENDIENTE`.
-
-Un monto que supere el saldo se rechaza con `409`: cobrar de más dejaría un saldo
-negativo que el sistema no sabe devolver.
-
-**No hay `DELETE` a propósito**, por el mismo motivo que en reservas: un pago es
-un registro de plata y se conserva como historial. Anular no es borrar.
-
-Los permisos están partidos: **registrar, corregir y anular son del `ADMIN`** (la
-plata la cobra el complejo, no la declara el cliente), y la lectura va por dueño,
-como en reservas.
-
-### Códigos de respuesta
-
-| Código | Cuándo |
-|---|---|
-| `200 OK` | Listar, obtener, modificar o eliminar con éxito |
-| `201 Created` | Alta con éxito |
-| `400 Bad Request` | Faltan datos, o vienen con un formato o un id inválido |
-| `401 Unauthorized` | La sesión no sirve: falta el token, venció, no es válido o la cuenta está dada de baja |
-| `403 Forbidden` | La sesión sirve, pero ese usuario no puede hacer eso |
-| `404 Not Found` | El recurso pedido no existe |
-| `409 Conflict` | Choca con el estado actual: turno ya tomado, equipamiento que no alcanza, registro referenciado por otro, reserva ya cancelada |
-| `500 Internal Server Error` | Error inesperado del servidor |
+### Errores
 
 Los errores salen **siempre** con la misma forma, en español:
 
@@ -511,11 +388,22 @@ Los errores salen **siempre** con la misma forma, en español:
 { "mensaje": "Tipo de cancha no encontrado" }
 ```
 
-## Probar la API sin el frontend
+| Código | Cuándo |
+|---|---|
+| `200 OK` | Listar, obtener, modificar o eliminar con éxito |
+| `201 Created` | Alta con éxito |
+| `400 Bad Request` | Faltan datos, o vienen con un formato o un id inválido |
+| `401 Unauthorized` | Falta la sesión, venció o no es válida |
+| `403 Forbidden` | La sesión sirve, pero ese usuario no puede hacer eso |
+| `404 Not Found` | El recurso pedido no existe |
+| `409 Conflict` | Choca con el estado actual: turno ya tomado, registro referenciado por otro, reserva ya cancelada |
+| `500 Internal Server Error` | Error inesperado del servidor |
 
-El archivo `requests.http` de la raíz tiene peticiones de ejemplo para todos los
-endpoints, incluidos los casos de error. Se ejecutan desde VS Code con la
-extensión [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client),
+### Probar la API sin el frontend
+
+El archivo `requests.http` tiene peticiones de ejemplo para todos los endpoints,
+incluidos los casos de error. Se ejecutan desde VS Code con la extensión
+[REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client),
 o desde JetBrains con su cliente HTTP integrado.
 
 ## Estado del proyecto
@@ -525,11 +413,3 @@ Implementados de punta a punta: **TipoCancha**, **TipoEvento**, **Cancha**,
 **Rol** de solo lectura, y los casos de uso de **reservar una cancha** (con
 equipamiento), **gestionar reservas** (reprogramar y cancelar) y **registrar el
 pago de una reserva**.
-
-Todo eso está cubierto por tests: los unitarios sobre las reglas del negocio y
-las validaciones, y los de integración sobre la API completa contra una base de
-MySQL, incluidos los niveles de acceso y las reglas de quién puede tocar la
-reserva de quién.
-
-El seguimiento de tareas y el detalle de lo que falta se llevan en el repositorio
-de documentación del TP, en `docs/backlog.md`.
