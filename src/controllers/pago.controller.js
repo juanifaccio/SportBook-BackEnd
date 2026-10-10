@@ -1,41 +1,23 @@
 const prisma = require('../config/prisma');
 const ROLES = require('../config/roles');
-// Del controller de reservas salen tres cosas: las conversiones de la reserva
-// anidada (sutiles, y dos copias se terminan desincronizando) y las dos reglas
-// que definen su estado a partir de lo pagado. Esas viven allá porque el estado
-// de la reserva es asunto de la reserva; la dependencia va en un solo sentido.
 const {
     aRespuesta: reservaARespuesta,
     saldoDe,
     estadoSegunPagos
 } = require('./reserva.controller');
 
-/** Métodos que acepta el enum `MetodoPago` del schema. */
 const METODOS_VALIDOS = ['EFECTIVO', 'TARJETA', 'TRANSFERENCIA'];
 
-/** Estado con el que nace un pago. */
 const ESTADO_INICIAL = 'REGISTRADO';
 
-/** Estado al que llega un pago anulado. Ver el comentario del enum en el schema. */
 const ESTADO_ANULADO = 'ANULADO';
 
-/** Estado en el que una reserva ya no admite cobros. */
 const RESERVA_CANCELADA = 'CANCELADA';
 
-/**
- * Un pago es de quien es su reserva. El administrador los ve todos (es el
- * mostrador del complejo) y es el único que puede registrarlos o anularlos: la
- * plata la cobra el complejo, no la declara el cliente.
- */
 const esAdmin = (usuario) => usuario.rol.nombre === ROLES.ADMIN;
 
 const esPropia = (reserva, usuario) => reserva.usuarioId === usuario.id;
 
-/**
- * Relaciones que acompañan al pago en todas las respuestas. La reserva viaja
- * entera porque el listado tiene que poder identificar de cuál es cada pago, y
- * pedirla aparte sería una consulta más por fila.
- */
 const RELACIONES = {
     reserva: {
         include: {
@@ -49,13 +31,6 @@ const RELACIONES = {
     }
 };
 
-/**
- * Relee el pago con sus relaciones.
- *
- * Registrar y anular cambian el estado de la reserva *después* de tocar el pago,
- * así que la reserva que se incluyó en esa primera escritura ya quedó vieja. Se
- * vuelve a pedir para que el cliente reciba el estado que quedó, y no el previo.
- */
 const conRelaciones = (id) =>
     prisma.pago.findUnique({
         where: {
@@ -64,10 +39,6 @@ const conRelaciones = (id) =>
         include: RELACIONES
     });
 
-/**
- * Adapta el pago antes de responder: el `Decimal` a número y la fecha `DATE` a
- * "AAAA-MM-DD", con el mismo criterio que el resto de la API.
- */
 const aRespuesta = (pago) => ({
     ...pago,
     monto: Number(pago.monto),
@@ -75,13 +46,6 @@ const aRespuesta = (pago) => ({
     reserva: pago.reserva && reservaARespuesta(pago.reserva)
 });
 
-/**
- * Valida los campos del cuerpo y los devuelve ya normalizados.
- *
- * `fecha` y `estado` no entran: el día lo pone el servidor (un pago se registra
- * cuando se cobra) y el estado nace REGISTRADO. `reservaId` se valida solo en el
- * alta: un pago no se muda de reserva.
- */
 const validarDatos = (body) => {
     const monto = Number(body.monto);
     const metodo = typeof body.metodo === 'string' ? body.metodo.trim() : '';
@@ -97,10 +61,6 @@ const validarDatos = (body) => {
     return { datos: { monto, metodo } };
 };
 
-/**
- * Arma el filtro del listado a partir de los query params, con el mismo criterio
- * que el resto de los controllers.
- */
 const armarFiltro = (query) => {
     const filtro = {};
 
@@ -125,10 +85,6 @@ const armarFiltro = (query) => {
     return { filtro };
 };
 
-/**
- * Deja la reserva en el estado que le corresponde según sus pagos. Se llama
- * después de registrar o anular uno, dentro de la misma transacción.
- */
 const recalcularReserva = async (tx, reservaId) => {
     const reserva = await tx.reserva.findUnique({
         where: {
@@ -165,15 +121,12 @@ const listarPagos = async (req, res) => {
             });
         }
 
-        // Se pisa el filtro en vez de rechazar el pedido, igual que en reservas:
-        // para el cliente el listado es siempre el de sus propias reservas.
         if (!esAdmin(req.usuario)) {
             filtro.reserva = {
                 usuarioId: req.usuario.id
             };
         }
 
-        // Los más nuevos primero: es el orden en el que se miran las cobranzas.
         const pagos = await prisma.pago.findMany({
             where: filtro,
             include: RELACIONES,
@@ -190,13 +143,6 @@ const listarPagos = async (req, res) => {
     }
 };
 
-/**
- * Registra el cobro de una reserva.
- *
- * El monto no puede superar lo que falta pagar: cobrar de más dejaría a la
- * reserva con un saldo negativo que el sistema no sabe devolver. La fecha y el
- * estado los pone el servidor.
- */
 const crearPago = async (req, res) => {
     try {
         const { mensaje, datos } = validarDatos(req.body);
@@ -224,8 +170,6 @@ const crearPago = async (req, res) => {
             }
         });
 
-        // La reserva llega en el cuerpo del request, así que un id inexistente es
-        // un dato inválido del cliente (400) y no un recurso faltante (404).
         if (!reserva) {
             return res.status(400).json({
                 mensaje: 'La reserva indicada no existe'
@@ -252,14 +196,10 @@ const crearPago = async (req, res) => {
             });
         }
 
-        // El pago y el estado de la reserva se escriben juntos: una reserva que
-        // quedara PENDIENTE con su total ya cobrado sería peor que no registrar
-        // el pago.
         const creado = await prisma.$transaction(async (tx) => {
             const pago = await tx.pago.create({
                 data: {
                     ...datos,
-                    // Solo el día, sin hora: es un DATE y se compara como tal.
                     fecha: new Date(new Date().toISOString().slice(0, 10)),
                     estado: ESTADO_INICIAL,
                     reservaId: reservaId
@@ -320,14 +260,6 @@ const obtenerPago = async (req, res) => {
     }
 };
 
-/**
- * Corrige cómo se cobró un pago ya registrado.
- *
- * Lo único editable es el método: el monto de un pago no se edita (para eso se
- * anula y se registra el correcto) y la reserva tampoco, porque un pago no se
- * muda. Con el monto fijo, esta operación no puede cambiar el estado de la
- * reserva.
- */
 const actualizarPago = async (req, res) => {
     try {
         const id = parseInt(req.params.id);
@@ -384,13 +316,6 @@ const actualizarPago = async (req, res) => {
     }
 };
 
-/**
- * Anula un pago.
- *
- * No hay `DELETE` a propósito: un pago es un registro de plata y se conserva
- * como historial, igual que una reserva cancelada. Anularlo lo saca de la cuenta
- * del saldo, así que una reserva que estaba CONFIRMADA vuelve a PENDIENTE.
- */
 const anularPago = async (req, res) => {
     try {
         const id = parseInt(req.params.id);
@@ -442,10 +367,6 @@ const anularPago = async (req, res) => {
     }
 };
 
-// Además de los handlers se exportan las funciones puras del controller: no
-// tocan la base ni el request, son las reglas del negocio en su forma más
-// chica, y exportarlas es lo que permite cubrirlas con tests unitarios sin
-// levantar el servidor.
 module.exports = {
     listarPagos,
     crearPago,

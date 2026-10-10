@@ -35,8 +35,6 @@ describe('usuario: validación', () => {
       });
     });
 
-    // El email se guarda en minúsculas para que el índice único no deje entrar
-    // al mismo usuario dos veces escrito con mayúsculas distintas.
     it('normaliza el email a minúsculas y sin espacios', () => {
       assert.equal(validarDatos(cuerpo({ email: '  Lucia.Gomez@Ejemplo.COM ' }), ALTA).datos.email, 'lucia.gomez@ejemplo.com');
     });
@@ -63,9 +61,6 @@ describe('usuario: validación', () => {
       assert.match(validarDatos(cuerpo({ email: 'lucia @ejemplo.com' }), ALTA).mensaje, /email/);
     });
 
-    // La contraseña es el único campo que cambia según el caso: al editar se
-    // puede omitir para dejar la que ya estaba, porque el formulario no la tiene
-    // (la API nunca la devuelve).
     it('exige la contraseña al dar de alta', () => {
       assert.match(validarDatos(cuerpo({ contrasena: undefined }), ALTA).mensaje, /contraseña/);
     });
@@ -99,8 +94,6 @@ describe('usuario: validación', () => {
       assert.match(validarDatos(cuerpo({ rolId: undefined }), ALTA).mensaje, /rol/);
     });
 
-    // La contraseña sale de acá en claro: hashearla es cosa del controller, que
-    // es el que la guarda.
     it('devuelve la contraseña sin hashear', () => {
       assert.equal(validarDatos(cuerpo(), ALTA).datos.contrasena, 'unaClave123');
     });
@@ -124,8 +117,6 @@ describe('usuario: validación', () => {
       });
     });
 
-    // Es lo que impide que un cliente se ascienda a administrador con un PUT a
-    // sus propios datos, o que se reactive una cuenta dada de baja.
     it('descarta el rol y el activo aunque vengan en el cuerpo', () => {
       const { datos } = validarPerfil(perfil({ rolId: 1, activo: true }));
 
@@ -133,7 +124,6 @@ describe('usuario: validación', () => {
       assert.equal(datos.activo, undefined);
     });
 
-    // La contraseña se cambia por su propio endpoint, que además pide la actual.
     it('descarta la contraseña aunque venga en el cuerpo', () => {
       assert.equal(validarPerfil(perfil({ contrasena: 'otraClave123' })).datos.contrasena, undefined);
     });
@@ -142,8 +132,6 @@ describe('usuario: validación', () => {
       assert.equal(validarPerfil(perfil({ email: 'Lucia.Gomez@Ejemplo.com' })).datos.email, 'lucia.gomez@ejemplo.com');
     });
 
-    // Las mismas reglas que el ABM: el mismo dato mal escrito se queja igual en
-    // las dos pantallas.
     it('rechaza el perfil sin nombre', () => {
       assert.match(validarPerfil(perfil({ nombre: '' })).mensaje, /nombre/);
     });
@@ -172,8 +160,6 @@ describe('usuario: validación', () => {
       });
     });
 
-    // Sin la actual, cualquiera con un token prestado le cambia la clave al
-    // dueño y lo deja afuera de su propia cuenta.
     it('exige la contraseña actual', () => {
       assert.match(validarCambioDeContrasena(cambio({ contrasenaActual: '' })).mensaje, /actual/);
     });
@@ -190,8 +176,6 @@ describe('usuario: validación', () => {
       assert.equal(validarCambioDeContrasena(cambio({ contrasenaNueva: '12345678' })).mensaje, undefined);
     });
 
-    // Cambiarla por la misma no es un cambio: el usuario se iría creyendo que
-    // hizo algo.
     it('rechaza una contraseña nueva igual a la actual', () => {
       assert.match(
         validarCambioDeContrasena(cambio({ contrasenaNueva: 'unaClave123' })).mensaje,
@@ -207,8 +191,6 @@ describe('usuario: validación', () => {
   });
 
   describe('aRespuesta', () => {
-    // Todas las respuestas del controller pasan por acá, así que el hash no
-    // puede filtrarse por olvidarse de excluirlo en un endpoint nuevo.
     it('saca la contraseña', () => {
       const usuario = { id: 1, nombre: 'Lucía', email: 'l@ejemplo.com', contrasena: '$2b$10$hash' };
 

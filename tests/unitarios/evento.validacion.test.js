@@ -41,14 +41,11 @@ describe('evento: validación', () => {
       assert.match(validarDatos(cuerpo({ cantidadPersonas: 'muchos' })).mensaje, /cantidad de personas/);
     });
 
-    // Un evento de cero personas no es un evento, y uno de menos no existe.
     it('rechaza una cantidad de cero o negativa', () => {
       assert.match(validarDatos(cuerpo({ cantidadPersonas: 0 })).mensaje, /mayor a cero/);
       assert.match(validarDatos(cuerpo({ cantidadPersonas: -5 })).mensaje, /mayor a cero/);
     });
 
-    // Medio invitado no existe: si esto pasara, la base truncaría el decimal en
-    // silencio y el complejo prepararía para una cantidad distinta a la pedida.
     it('rechaza una cantidad con decimales', () => {
       assert.match(validarDatos(cuerpo({ cantidadPersonas: 12.5 })).mensaje, /entero/);
     });
@@ -57,8 +54,6 @@ describe('evento: validación', () => {
       assert.match(validarDatos(cuerpo({ tipoEventoId: undefined })).mensaje, /tipo de evento/);
     });
 
-    // `reservaId` no lo valida `validarDatos` sino el alta: la edición no mueve
-    // el evento de una reserva a otra, así que mandarlo no cambia nada.
     it('ignora la reserva que venga en el cuerpo', () => {
       const { datos } = validarDatos(cuerpo({ reservaId: 7 }));
 
@@ -105,8 +100,6 @@ describe('evento: validación', () => {
       assert.equal(aRespuesta(evento(undefined)).reserva, undefined);
     });
 
-    // La reserva anidada pasa por las mismas conversiones que cuando se la pide
-    // por su propio endpoint: el DATE recortado y el Decimal como número.
     it('adapta la reserva incluida', () => {
       const respuesta = aRespuesta(
         evento({

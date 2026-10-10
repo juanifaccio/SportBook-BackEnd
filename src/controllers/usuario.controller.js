@@ -2,59 +2,28 @@ const bcrypt = require('bcryptjs');
 
 const prisma = require('../config/prisma');
 
-/** Código con el que Prisma reporta la violación de un índice único. */
 const CODIGO_DUPLICADO = 'P2002';
 
-/** Código con el que Prisma reporta la violación de una clave foránea. */
 const CODIGO_CLAVE_FORANEA = 'P2003';
 
-/**
- * Formato mínimo de un email: algo, arroba, dominio con al menos un punto. No
- * pretende validar la especificación completa (eso solo lo confirma mandar un
- * mail), sino frenar los errores de tipeo evidentes.
- */
 const FORMATO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Dígitos, espacios, guiones, paréntesis y un `+` inicial. */
 const FORMATO_TELEFONO = /^\+?[\d\s()-]{6,20}$/;
 
-/** Largo mínimo de la contraseña, en caracteres. */
 const LARGO_MINIMO_CONTRASENA = 8;
 
-/**
- * Costo del hash de bcrypt. Diez rondas es el valor por defecto de la librería:
- * suficientemente lento para un ataque por fuerza bruta y suficientemente rápido
- * para no demorar el alta de un usuario.
- */
 const RONDAS_HASH = 10;
 
 const normalizar = (texto) => (typeof texto === 'string' ? texto.trim() : '');
 
-/**
- * Saca `contrasena` del objeto antes de responder. Todas las respuestas de este
- * controller pasan por acá, así que el hash no puede filtrarse por olvidarse de
- * excluirlo en un endpoint nuevo.
- */
 const aRespuesta = (usuario) => {
     const { contrasena, ...resto } = usuario;
 
     return resto;
 };
 
-/**
- * Valida los campos del cuerpo y los devuelve ya normalizados. Si algo no cumple
- * devuelve `{ mensaje }` con el error a informar, para que crear y actualizar
- * apliquen exactamente las mismas reglas.
- *
- * La contraseña es el único campo que se comporta distinto según el caso: al dar
- * de alta es obligatoria, pero al editar se puede omitir para dejar la que ya
- * estaba, así que no se puede pedir que el formulario la reenvíe (no la tiene:
- * la API nunca la devuelve).
- */
 const validarDatos = (body, esEdicion) => {
     const nombre = normalizar(body.nombre);
-    // El email se guarda en minúsculas para que el índice único no deje entrar
-    // el mismo usuario dos veces escrito con mayúsculas distintas.
     const email = normalizar(body.email).toLowerCase();
     const contrasena = typeof body.contrasena === 'string' ? body.contrasena : '';
     const telefono = normalizar(body.telefono);
@@ -98,8 +67,6 @@ const validarDatos = (body, esEdicion) => {
         activo: body.activo === undefined ? true : body.activo
     };
 
-    // Sin contraseña nueva el campo ni siquiera viaja al `update`, así que Prisma
-    // deja intacto el hash guardado.
     if (contrasena) {
         datos.contrasena = contrasena;
     }
@@ -107,21 +74,6 @@ const validarDatos = (body, esEdicion) => {
     return { datos };
 };
 
-/**
- * Valida los campos que un usuario puede cambiarse a sí mismo desde su perfil.
- *
- * Es una lista blanca y no un `validarDatos` con menos campos: `rol` y `activo`
- * quedan afuera **a propósito**. Si el endpoint del perfil aceptara el cuerpo
- * entero, un cliente se ascendería a administrador con un `PUT` a sus propios
- * datos, o se reactivaría una cuenta dada de baja.
- *
- * La contraseña tampoco entra: se cambia por su propio endpoint, que además pide
- * la actual.
- *
- * Vive acá y no en `auth.controller.js` (donde están los handlers del perfil)
- * para que las reglas de los campos de Usuario estén todas en un solo lugar: el
- * mismo email mal escrito tiene que quejarse igual en el ABM y en el perfil.
- */
 const validarPerfil = (body) => {
     const nombre = normalizar(body.nombre);
     const email = normalizar(body.email).toLowerCase();
@@ -142,14 +94,6 @@ const validarPerfil = (body) => {
     return { datos: { nombre, email, telefono } };
 };
 
-/**
- * Valida el cambio de contraseña del propio usuario.
- *
- * Pide la actual además de la nueva: sin eso, cualquiera que consiga un token
- * prestado le cambia la clave al dueño y lo deja afuera de su propia cuenta.
- * Comprobar que la actual sea la correcta es cosa del handler, que es el que
- * tiene el hash.
- */
 const validarCambioDeContrasena = (body) => {
     const actual = typeof body.contrasenaActual === 'string' ? body.contrasenaActual : '';
     const nueva = typeof body.contrasenaNueva === 'string' ? body.contrasenaNueva : '';
@@ -177,8 +121,6 @@ const validarCambioDeContrasena = (body) => {
 
 const listarUsuarios = async (req, res) => {
     try {
-        // Se incluye el rol para que el listado del frontend pueda mostrar su
-        // nombre sin tener que pedirlo usuario por usuario.
         const usuarios = await prisma.usuario.findMany({
             include: {
                 rol: true
@@ -211,8 +153,6 @@ const crearUsuario = async (req, res) => {
             }
         });
 
-        // El rol llega en el cuerpo del request, así que un id inexistente es un
-        // dato inválido del cliente (400) y no un recurso faltante en la URL (404).
         if (!rol) {
             return res.status(400).json({
                 mensaje: 'El rol indicado no existe'
@@ -384,9 +324,6 @@ const eliminarUsuario = async (req, res) => {
             mensaje: 'Usuario eliminado correctamente'
         });
     } catch (error) {
-        // Todavía no hay ninguna tabla apuntando a Usuario, pero Reserva lo va a
-        // hacer: cuando exista, borrar un usuario con reservas tiene que avisar
-        // que no se puede en vez de salir como un 500.
         if (error.code === CODIGO_CLAVE_FORANEA) {
             return res.status(409).json({
                 mensaje: 'No se puede eliminar el usuario porque tiene reservas asociadas'
@@ -401,10 +338,6 @@ const eliminarUsuario = async (req, res) => {
     }
 };
 
-// Además de los handlers se exportan las funciones puras del controller: no
-// tocan la base ni el request, son las reglas del negocio en su forma más
-// chica, y exportarlas es lo que permite cubrirlas con tests unitarios sin
-// levantar el servidor.
 module.exports = {
     listarUsuarios,
     crearUsuario,

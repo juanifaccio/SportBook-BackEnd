@@ -1,35 +1,17 @@
 const prisma = require('../config/prisma');
 const { alquiladoEnTurno, disponiblesDe } = require('./reserva.controller');
 
-/** Código con el que Prisma reporta la violación de un índice único. */
 const CODIGO_DUPLICADO = 'P2002';
 
-/** Código con el que Prisma reporta la violación de una clave foránea. */
 const CODIGO_CLAVE_FORANEA = 'P2003';
 
-/**
- * Normaliza un texto recibido del cliente. El `trim` del nombre no es cosmético:
- * la colación de la base ignora mayúsculas, acentos y espacios al final, pero
- * **no** los espacios al principio, así que sin esto una " Pelota" se colaría
- * junto a la que ya existe y el índice único no lo detendría.
- */
 const normalizar = (texto) => (typeof texto === 'string' ? texto.trim() : '');
 
-/**
- * Prisma devuelve `precio` como un Decimal, que al serializarse a JSON viaja
- * como string. El frontend lo necesita como número para formatearlo y
- * multiplicarlo por la cantidad al reservar.
- */
 const aRespuesta = (equipamiento) => ({
     ...equipamiento,
     precio: Number(equipamiento.precio)
 });
 
-/**
- * Valida los campos del cuerpo y los devuelve ya normalizados. Si algo no cumple
- * devuelve `{ mensaje }` con el error a informar, para que crear y actualizar
- * apliquen exactamente las mismas reglas.
- */
 const validarDatos = (body) => {
     const nombre = normalizar(body.nombre);
     const descripcion = normalizar(body.descripcion);
@@ -48,9 +30,6 @@ const validarDatos = (body) => {
         return { mensaje: 'El precio debe ser un número mayor a cero' };
     }
 
-    // El stock son unidades que se prestan de a una, así que un valor con
-    // decimales no significa nada. El cero sí: un artículo agotado sigue estando
-    // en el catálogo, y es lo que permite darlo de baja sin borrarlo.
     if (isNaN(stock) || !Number.isInteger(stock) || stock < 0) {
         return { mensaje: 'El stock debe ser un número entero mayor o igual a cero' };
     }
@@ -58,10 +37,6 @@ const validarDatos = (body) => {
     return { datos: { nombre, descripcion, precio, stock } };
 };
 
-/**
- * Lee el turno de `?horarioId=`, si vino. Devuelve `{ codigo, mensaje }` si no
- * sirve, `{ horario }` si sí, o `{}` si no se pidió.
- */
 const buscarTurnoDelFiltro = async (query) => {
     if (query.horarioId === undefined) {
         return {};
@@ -79,9 +54,6 @@ const buscarTurnoDelFiltro = async (query) => {
         }
     });
 
-    // A diferencia del filtro por tipo de las canchas, acá un turno inexistente
-    // sí es un error: no es una búsqueda sin resultados, sino una pregunta
-    // (cuánto queda libre en este turno) que no tiene respuesta.
     if (!horario) {
         return { codigo: 404, mensaje: 'Turno no encontrado' };
     }
@@ -89,13 +61,6 @@ const buscarTurnoDelFiltro = async (query) => {
     return { horario };
 };
 
-/**
- * Lista el catálogo. Con `?horarioId=` cada artículo viene además con
- * `disponibles`: las unidades que quedan libres durante ese turno, que es lo que
- * la pantalla de reservar necesita para no ofrecer lo que ya está alquilado. La
- * cuenta es la misma que hace el alta de la reserva (`alquiladoEnTurno`), así
- * que lo que se muestra es lo que después se acepta.
- */
 const listarEquipamientos = async (req, res) => {
     try {
         const { codigo, mensaje, horario } = await buscarTurnoDelFiltro(req.query);
@@ -106,9 +71,6 @@ const listarEquipamientos = async (req, res) => {
             });
         }
 
-        // Ordenado por nombre: es un catálogo que se recorre para encontrar un
-        // artículo, y el orden de alta no ayuda a eso. El nombre es único, así
-        // que el orden es siempre el mismo.
         const equipamientos = await prisma.equipamiento.findMany({
             orderBy: {
                 nombre: 'asc'
@@ -283,10 +245,6 @@ const eliminarEquipamiento = async (req, res) => {
             mensaje: 'Equipamiento eliminado correctamente'
         });
     } catch (error) {
-        // Un artículo que ya se alquiló en alguna reserva queda en su historial:
-        // la FK de `ReservaEquipamiento` impide borrarlo, y sin esto el error de
-        // la base saldría como un 500. Para sacarlo de circulación alcanza con
-        // dejarle el stock en cero.
         if (error.code === CODIGO_CLAVE_FORANEA) {
             return res.status(409).json({
                 mensaje: 'No se puede eliminar el equipamiento porque hay reservas que lo incluyen'
@@ -301,10 +259,6 @@ const eliminarEquipamiento = async (req, res) => {
     }
 };
 
-// Además de los handlers se exportan las funciones puras del controller: no
-// tocan la base ni el request, son las reglas del negocio en su forma más
-// chica, y exportarlas es lo que permite cubrirlas con tests unitarios sin
-// levantar el servidor.
 module.exports = {
     listarEquipamientos,
     crearEquipamiento,

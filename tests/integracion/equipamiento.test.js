@@ -5,11 +5,6 @@ const request = require('supertest');
 const app = require('../../src/app');
 const { prisma, verificarBaseDePrueba, limpiar, sembrar, autorizacion } = require('../apoyo/base');
 
-/**
- * El ABM de Equipamiento de punta a punta. Es el tercer CRUD simple del alcance
- * mínimo y sigue el mismo recorrido que TipoCancha; lo propio de este es el
- * `precio` Decimal, que tiene que volver como número, y el `stock` entero.
- */
 describe('CRUD de equipamiento', () => {
   let datos;
   let admin;
@@ -58,8 +53,6 @@ describe('CRUD de equipamiento', () => {
       assert.equal(guardado.stock, 4);
     });
 
-    // Prisma devuelve el Decimal como string; si saliera así, el frontend
-    // mostraría "800.00" y no podría multiplicarlo por la cantidad.
     it('devuelve el precio como número y no como texto', async () => {
       const respuesta = await request(app)
         .post('/api/equipamientos')
@@ -89,7 +82,6 @@ describe('CRUD de equipamiento', () => {
       assert.match(respuesta.body.mensaje, /mayor a cero/);
     });
 
-    // El cero es válido a propósito: un artículo agotado sigue en el catálogo.
     it('acepta un stock de cero', async () => {
       const respuesta = await request(app)
         .post('/api/equipamientos')
@@ -115,8 +107,6 @@ describe('CRUD de equipamiento', () => {
       assert.equal(fraccionado.status, 400);
     });
 
-    // Es un catálogo: dos filas con el mismo nombre partirían el stock entre dos
-    // ids que significan lo mismo.
     it('no admite dos equipamientos con el mismo nombre', async () => {
       const respuesta = await request(app)
         .post('/api/equipamientos')
@@ -171,8 +161,6 @@ describe('CRUD de equipamiento', () => {
       assert.equal(respuesta.status, 404);
     });
 
-    // Un id que no es un número es un pedido mal formado, no un recurso que
-    // falta: por eso 400 y no 404.
     it('responde 400 si el id no es un número', async () => {
       const respuesta = await request(app).get('/api/equipamientos/pepe').set(...admin);
 

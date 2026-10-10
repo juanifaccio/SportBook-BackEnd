@@ -12,9 +12,6 @@ const ROLES = require('../config/roles');
 
 const router = express.Router();
 
-// El recurso entero es de administración: son las cuentas de la aplicación, con
-// los datos de contacto de todos los clientes y el rol (el nivel de acceso) de
-// cada uno. Un cliente no lista a los demás ni se cambia el rol a sí mismo.
 router.use(autenticar, autorizar(ROLES.ADMIN));
 
 router.get('/', listarUsuarios);

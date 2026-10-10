@@ -5,10 +5,6 @@ const request = require('supertest');
 const app = require('../../src/app');
 const { prisma, verificarBaseDePrueba, limpiar, sembrar, autorizacion } = require('../apoyo/base');
 
-/**
- * El caso de uso central, de punta a punta: reservar un turno, gestionarlo y
- * cancelarlo, con las reglas de quién puede hacer qué sobre la reserva de quién.
- */
 describe('reservas', () => {
   let datos;
   let admin;
@@ -30,7 +26,6 @@ describe('reservas', () => {
     await prisma.$disconnect();
   });
 
-  /** Reserva creada por la API, que es como nacen todas. */
   const reservar = (autorizacionDeQuien, cuerpo) =>
     request(app)
       .post('/api/reservas')
@@ -45,12 +40,9 @@ describe('reservas', () => {
 
       assert.equal(respuesta.status, 201);
       assert.equal(respuesta.body.usuarioId, datos.cliente.id);
-      // Nace PENDIENTE: la confirma el pago, no el alta. Ver `pago.test.js`.
       assert.equal(respuesta.body.estado, 'PENDIENTE');
     });
 
-    // La fecha, las horas, la cancha y el precio los deriva el backend del turno:
-    // un total que llega del navegador no se puede creer.
     it('copia del turno la fecha, las horas y la cancha', async () => {
       const { body } = await reservar(cliente, { horarioId: datos.turnoLibre.id });
 
@@ -65,7 +57,6 @@ describe('reservas', () => {
       const unaHora = await reservar(cliente, { horarioId: datos.turnoLibre.id });
       const horaYMedia = await reservar(cliente, { horarioId: datos.otroTurnoLibre.id });
 
-      // La cancha vale 12000 la hora.
       assert.equal(unaHora.body.precioTotal, 12000);
       assert.equal(horaYMedia.body.precioTotal, 18000);
     });
@@ -84,8 +75,6 @@ describe('reservas', () => {
       assert.equal(turno.disponible, false);
     });
 
-    // El candado contra la doble reserva: un `updateMany` filtrado por
-    // `disponible: true` dentro de la misma transacción que crea la reserva.
     it('no deja reservar dos veces el mismo turno', async () => {
       await reservar(cliente, { horarioId: datos.turnoLibre.id });
 
@@ -102,8 +91,6 @@ describe('reservas', () => {
       assert.equal(await prisma.reserva.count(), 1);
     });
 
-    // El dueño sale de la sesión, no del cuerpo: si viniera del cliente,
-    // cualquiera podría reservar a nombre de otro.
     it('el cliente no puede reservar a nombre de otro', async () => {
       const { body } = await reservar(cliente, {
         horarioId: datos.turnoLibre.id,
@@ -113,8 +100,6 @@ describe('reservas', () => {
       assert.equal(body.usuarioId, datos.cliente.id);
     });
 
-    // La excepción: el administrador reserva desde el mostrador para quien se lo
-    // pide, así que es el único que puede mandar `usuarioId`.
     it('el administrador sí puede reservar a nombre de otro', async () => {
       const respuesta = await reservar(admin, {
         horarioId: datos.turnoLibre.id,
@@ -188,9 +173,6 @@ describe('reservas', () => {
       assert.equal(respuesta.body[0].usuarioId, datos.cliente.id);
     });
 
-    // El filtro `?usuarioId=` es del listado de administración. Para el cliente
-    // el listado es siempre el suyo, así que se le pisa: mandar el id de otro no
-    // cambia nada.
     it('el cliente no puede espiar las de otro por query param', async () => {
       const respuesta = await request(app)
         .get(`/api/reservas?usuarioId=${datos.otroCliente.id}`)
@@ -223,8 +205,6 @@ describe('reservas', () => {
       assert.equal((await request(app).get('/api/reservas?estado=ANULADA').set(...admin)).status, 400);
     });
 
-    // El usuario viaja anidado dentro de la reserva, donde el controller de
-    // usuarios no puede hacer nada por él.
     it('no filtra la contraseña del usuario incluido', async () => {
       const respuesta = await request(app).get('/api/reservas').set(...admin);
 
@@ -286,8 +266,6 @@ describe('reservas', () => {
       assert.equal(respuesta.body.horarioId, datos.otroTurnoLibre.id);
     });
 
-    // Los datos del turno son una copia: si solo se cambiara el `horarioId`, la
-    // reserva quedaría mostrando el horario y el precio del turno viejo.
     it('vuelve a copiar las horas y el precio del turno nuevo', async () => {
       const { body } = await reprogramar(cliente, datos.otroTurnoLibre.id);
 
@@ -306,8 +284,6 @@ describe('reservas', () => {
       assert.equal(nuevo.disponible, false);
     });
 
-    // Sin este control, reprogramar al mismo turno lo liberaría después de
-    // haberlo tomado y la reserva quedaría ocupando un turno marcado como libre.
     it('rechaza reprogramar al mismo turno en el que ya está', async () => {
       const respuesta = await reprogramar(cliente, datos.turnoLibre.id);
 
@@ -369,8 +345,6 @@ describe('reservas', () => {
       assert.equal(respuesta.body.estado, 'CANCELADA');
     });
 
-    // Cancelar no es borrar: la fila se conserva como historial y lo que se
-    // libera es el turno. Por eso el recurso no tiene DELETE.
     it('conserva la fila y devuelve el turno a la lista de libres', async () => {
       await cancelar(cliente);
 
@@ -380,8 +354,6 @@ describe('reservas', () => {
       assert.notEqual(await prisma.reserva.findUnique({ where: { id: reserva.id } }), null);
     });
 
-    // El motivo por el que `horarioId` no lleva `@unique`: el turno liberado
-    // tiene que poder reservarse de nuevo, y ya hay una reserva apuntándolo.
     it('el turno liberado se puede volver a reservar', async () => {
       await cancelar(cliente);
 
@@ -415,9 +387,6 @@ describe('reservas', () => {
     let vieja;
 
     beforeEach(async () => {
-      // No se puede crear por la API (justamente porque el turno ya pasó), así
-      // que se inserta directo: es el estado en el que queda cualquier reserva
-      // cuando le llega la hora.
       await prisma.horario.update({ where: { id: datos.turnoPasado.id }, data: { disponible: false } });
 
       vieja = await prisma.reserva.create({
@@ -434,8 +403,6 @@ describe('reservas', () => {
       });
     });
 
-    // Es historia: cancelarla liberaría un turno que ya no le sirve a nadie, y
-    // reprogramarla reescribiría lo que efectivamente pasó.
     it('no se puede cancelar', async () => {
       const respuesta = await request(app).put(`/api/reservas/${vieja.id}/cancelar`).set(...cliente);
 
@@ -452,8 +419,6 @@ describe('reservas', () => {
       assert.equal(respuesta.status, 400);
     });
 
-    // El permiso se evalúa antes que el estado: a un cliente ajeno ni siquiera le
-    // corresponde enterarse de en qué situación está la reserva de otro.
     it('a otro cliente le responde 403 y no el motivo real', async () => {
       const respuesta = await request(app).put(`/api/reservas/${vieja.id}/cancelar`).set(...otroCliente);
 

@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const { validarDatos, validarCambioConReserva, aRespuesta } = require('../../src/controllers/horario.controller');
 const { comoFechaDeBase } = require('../apoyo/fechas');
 
-/** Cuerpo válido de un turno. Cada test rompe un campo y deja el resto en pie. */
 const cuerpo = (cambios = {}) => ({
   fecha: '2026-09-15',
   horaInicio: '10:00',
@@ -27,7 +26,6 @@ describe('horario: validación del turno', () => {
       });
     });
 
-    // Un turno nace libre; se marca ocupado recién cuando alguien lo reserva.
     it('deja el turno disponible cuando no se dice lo contrario', () => {
       assert.equal(validarDatos(cuerpo()).datos.disponible, true);
     });
@@ -55,9 +53,6 @@ describe('horario: validación del turno', () => {
       assert.match(validarDatos(cuerpo({ fecha: '15/09/2026' })).mensaje, /AAAA-MM-DD/);
     });
 
-    // El caso que no alcanza a detectar el formato ni `isNaN`: `Date` acepta el
-    // 31 de febrero y lo corre al 3 de marzo, así que un turno cargado para un
-    // día que no existe quedaría guardado en otro.
     it('rechaza un día que no existe en el calendario', () => {
       assert.match(validarDatos(cuerpo({ fecha: '2026-02-31' })).mensaje, /AAAA-MM-DD/);
     });
@@ -93,7 +88,6 @@ describe('horario: validación del turno', () => {
   });
 
   describe('validarCambioConReserva', () => {
-    /** El turno reservado tal como está guardado: ya no figura disponible. */
     const reservado = {
       id: 1,
       fecha: comoFechaDeBase('2026-09-15'),
@@ -103,7 +97,6 @@ describe('horario: validación del turno', () => {
       disponible: false
     };
 
-    /** Lo que llega al editarlo, pasado por `validarDatos` como en el handler. */
     const cambio = (cambios = {}) => validarDatos(cuerpo({ disponible: false, ...cambios })).datos;
 
     it('deja guardarlo sin cambios', () => {
@@ -114,8 +107,6 @@ describe('horario: validación del turno', () => {
       assert.match(validarCambioConReserva(reservado, cambio({ disponible: true })).mensaje, /volver a ofrecer/);
     });
 
-    // `validarDatos` toma como disponible al turno que llega sin el campo: para
-    // uno reservado, eso es volver a ofrecerlo.
     it('rechaza guardarlo sin decir que sigue ocupado', () => {
       const datos = validarDatos(cuerpo()).datos;
 
@@ -143,8 +134,6 @@ describe('horario: validación del turno', () => {
   });
 
   describe('aRespuesta', () => {
-    // Prisma devuelve la columna DATE como un DateTime a medianoche UTC: sin
-    // recortarla, el cliente recibiría un día distinto del que cargó.
     it('recorta la fecha al día que se guardó', () => {
       const horario = { id: 1, fecha: comoFechaDeBase('2026-09-15'), horaInicio: '10:00' };
 

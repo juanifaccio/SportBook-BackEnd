@@ -5,12 +5,6 @@ const request = require('supertest');
 const app = require('../../src/app');
 const { prisma, verificarBaseDePrueba, limpiar, sembrar, autorizacion } = require('../apoyo/base');
 
-/**
- * El evento que se le declara a una reserva: qué se viene a hacer y cuánta gente
- * va. Lo que solo se ve al juntar las piezas es de quién es cada evento (el
- * permiso depende del dueño de la reserva del otro lado) y qué pasa cuando la
- * reserva ya no admite cambios.
- */
 describe('eventos de una reserva', () => {
   let datos;
   let admin;
@@ -28,8 +22,6 @@ describe('eventos de una reserva', () => {
     cliente = autorizacion(datos.cliente);
     otroCliente = autorizacion(datos.otroCliente);
 
-    // Las reservas se crean por la API, que es como nacen todas. No se siembran
-    // en `base.js` para no arrastrarlas a las otras suites.
     reservaPropia = await reservar(cliente, datos.turnoLibre.id);
     reservaAjena = await reservar(otroCliente, datos.otroTurnoLibre.id);
   });
@@ -87,8 +79,6 @@ describe('eventos de una reserva', () => {
       assert.equal(guardado.reservaId, reservaPropia.id);
     });
 
-    // La reserva viaja adentro del evento y pasa por las mismas conversiones que
-    // cuando se la pide por su propio endpoint.
     it('devuelve la reserva y el tipo incluidos, ya adaptados', async () => {
       const { body } = await crear(cliente, evento());
 
@@ -113,8 +103,6 @@ describe('eventos de una reserva', () => {
       assert.match(respuesta.body.mensaje, /mayor a cero/);
     });
 
-    // El tipo llega en el cuerpo, así que un id inexistente es un dato inválido
-    // del cliente y no un recurso faltante en la URL.
     it('rechaza con 400 un tipo de evento que no existe', async () => {
       const respuesta = await crear(cliente, evento({ tipoEventoId: 999999 }));
 
@@ -136,8 +124,6 @@ describe('eventos de una reserva', () => {
       assert.match(respuesta.body.mensaje, /reserva es obligatoria/);
     });
 
-    // El @unique de `reservaId` es el 1:0..1 del modelo: una reserva tiene a lo
-    // sumo un evento.
     it('no admite dos eventos sobre la misma reserva', async () => {
       await crear(cliente, evento());
 
@@ -164,8 +150,6 @@ describe('eventos de una reserva', () => {
       assert.equal(await prisma.evento.findUnique({ where: { reservaId: reservaAjena.id } }), null);
     });
 
-    // El administrador es el mostrador del complejo: carga el evento de la
-    // reserva de cualquiera.
     it('deja que el administrador cargue el evento de cualquier reserva', async () => {
       const respuesta = await crear(admin, evento({ reservaId: reservaAjena.id }));
 
@@ -186,8 +170,6 @@ describe('eventos de una reserva', () => {
       assert.equal(respuesta.body.length, 2);
     });
 
-    // El listado del cliente es siempre el de sus propias reservas: el filtro se
-    // pisa aunque mande el de otro.
     it('el cliente solo ve los de sus reservas', async () => {
       const respuesta = await request(app).get('/api/eventos').set(...cliente);
 
@@ -280,8 +262,6 @@ describe('eventos de una reserva', () => {
       assert.equal(respuesta.body.cantidadPersonas, 25);
     });
 
-    // Mover un evento de una reserva a otra no es una operación del negocio: el
-    // `reservaId` del cuerpo se ignora.
     it('no mueve el evento a otra reserva aunque le manden el id', async () => {
       const respuesta = await actualizar(admin, creado.id, {
         descripcion: 'Cumpleaños de 18',
@@ -349,8 +329,6 @@ describe('eventos de una reserva', () => {
       assert.equal(await prisma.evento.findUnique({ where: { id: creado.id } }), null);
     });
 
-    // A diferencia de la edición, borrar el evento de una reserva cancelada sí se
-    // permite: es limpiar un dato que ya no aplica.
     it('elimina el evento de una reserva cancelada', async () => {
       await cancelar(cliente, reservaPropia.id);
 
@@ -372,7 +350,6 @@ describe('eventos de una reserva', () => {
       assert.notEqual(await prisma.evento.findUnique({ where: { id: creado.id } }), null);
     });
 
-    // Después de borrarlo, la reserva vuelve a admitir un evento nuevo.
     it('deja la reserva libre para cargarle otro evento', async () => {
       await request(app).delete(`/api/eventos/${creado.id}`).set(...cliente);
 
@@ -398,8 +375,6 @@ describe('eventos de una reserva', () => {
       assert.equal(respuesta.body.evento, null);
     });
 
-    // La clave foránea de la base es la que frena el borrado; el controller
-    // traduce ese error de Prisma a un 409 con un mensaje que se entienda.
     it('no elimina un tipo de evento que tiene eventos asociados', async () => {
       await crear(cliente, evento());
 

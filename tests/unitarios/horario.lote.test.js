@@ -7,7 +7,6 @@ const {
   validarLote
 } = require('../../src/controllers/horario.controller');
 
-/** Cuerpo válido de un lote. Cada test rompe un campo y deja el resto en pie. */
 const cuerpo = (cambios = {}) => ({
   fecha: '2026-09-15',
   horaInicio: '08:00',
@@ -35,8 +34,6 @@ describe('horario: generación de turnos en lote', () => {
       });
     });
 
-    // De 08:00 a 13:00 en turnos de 90 minutos entran tres: el cuarto terminaría
-    // a las 14:00, fuera del horario que pidió el administrador.
     it('descarta el último turno cuando no entra completo', () => {
       const turnos = generarTurnos('08:00', '13:00', 90);
 
@@ -61,9 +58,6 @@ describe('horario: generación de turnos en lote', () => {
       ]);
     });
 
-    // El último turno de la noche no puede pasarse de las 23:59: las horas son
-    // "HH:mm" de un mismo día, así que un turno que cruce la medianoche no se
-    // podría representar.
     it('no se pasa del final del día', () => {
       const turnos = generarTurnos('22:00', '23:59', 60);
 
@@ -94,8 +88,6 @@ describe('horario: generación de turnos en lote', () => {
       );
     });
 
-    // Es el caso de todo lote: cada turno termina donde empieza el siguiente y
-    // eso no es pisarse, o no se podría generar una grilla corrida.
     it('no considera solapados a dos turnos que se tocan en el borde', () => {
       assert.equal(
         seSolapan({ horaInicio: '10:00', horaFin: '11:00' }, { horaInicio: '11:00', horaFin: '12:00' }),
@@ -125,8 +117,6 @@ describe('horario: generación de turnos en lote', () => {
       assert.equal(validarLote(cuerpo({ duracion: '30' })).datos.turnos.length, 8);
     });
 
-    // El día, el rango y la cancha son los mismos campos que un turno suelto, y
-    // los valida la misma función: un lote no puede aceptar lo que un alta no.
     it('aplica al lote las mismas reglas de fecha y horas que un turno suelto', () => {
       assert.match(validarLote(cuerpo({ fecha: '15/09/2026' })).mensaje, /AAAA-MM-DD/);
       assert.match(validarLote(cuerpo({ horaInicio: '8' })).mensaje, /HH:mm/);
@@ -150,8 +140,6 @@ describe('horario: generación de turnos en lote', () => {
       assert.match(validarLote(cuerpo({ duracion: -60 })).mensaje, /15 y 480/);
     });
 
-    // Que no entre ningún turno es un rango mal cargado, no un lote vacío: si se
-    // dejara pasar, la respuesta diría que salió bien sin haber creado nada.
     it('rechaza el rango más corto que la duración del turno', () => {
       assert.match(validarLote(cuerpo({ horaFin: '08:30', duracion: 60 })).mensaje, /más corto/);
     });

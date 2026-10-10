@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,18 +8,12 @@ datasource db {
 
 model TipoCancha {
   id          Int    @id @default(autoincrement())
-  // Es un catálogo: dos filas "Fútbol 5" partirían las canchas entre dos ids
-  // que significan lo mismo, y el listado filtrado por tipo mostraría la opción
-  // repetida con resultados incompletos.
   nombre      String @unique
   descripcion String
 
   canchas Cancha[]
 }
 
-/// Una cancha en mantenimiento sigue existiendo en el complejo, pero no admite
-/// reservas nuevas. Es un enum y no un texto libre para que la base rechace
-/// cualquier otro valor.
 enum EstadoCancha {
   DISPONIBLE
   MANTENIMIENTO
@@ -32,11 +21,7 @@ enum EstadoCancha {
 
 model Cancha {
   id            Int          @id @default(autoincrement())
-  // El nombre es cómo se identifica la cancha en el complejo ("Cancha 1"):
-  // repetirlo haría que el usuario no pueda saber cuál está reservando.
   nombre        String       @unique
-  // Decimal y no Float: el precio se multiplica por horas y se suma en el total
-  // de la reserva, donde el redondeo binario del punto flotante se acumula.
   precioPorHora Decimal      @db.Decimal(10, 2)
   estado        EstadoCancha
 
@@ -49,15 +34,9 @@ model Cancha {
 
 model Horario {
   id         Int      @id @default(autoincrement())
-  // La fecha es un día del calendario, sin hora: guardarla como DATE evita que
-  // el huso horario corra el turno al día anterior o al siguiente.
   fecha      DateTime @db.Date
-  // Las horas se guardan como "HH:mm". Es el formato que entra y sale de la API,
-  // ordena igual que el reloj y evita el DateTime con fecha ficticia que impone
-  // el tipo TIME.
   horaInicio String   @db.VarChar(5)
   horaFin    String   @db.VarChar(5)
-  // Un turno nace libre y se marca ocupado cuando alguien lo reserva.
   disponible Boolean  @default(true)
 
   canchaId Int
@@ -65,15 +44,11 @@ model Horario {
 
   reservas Reserva[]
 
-  // Dos turnos que arrancan a la misma hora en la misma cancha y el mismo día
-  // son el mismo turno cargado dos veces.
   @@unique([canchaId, fecha, horaInicio])
 }
 
 model Rol {
   id     Int    @id @default(autoincrement())
-  // Es un catálogo: dos filas "ADMIN" partirían a los usuarios entre dos ids que
-  // significan el mismo nivel de acceso.
   nombre String @unique
 
   usuarios Usuario[]
@@ -82,15 +57,9 @@ model Rol {
 model Usuario {
   id         Int     @id @default(autoincrement())
   nombre     String
-  // El email es con lo que el usuario se va a identificar al iniciar sesión:
-  // repetirlo haría ambigua la autenticación.
   email      String  @unique
-  // Sin "ñ" porque el schema de Prisma no admite caracteres no ASCII en los
-  // nombres de campo. Guarda el hash de bcrypt, nunca la contraseña en claro.
   contrasena String
   telefono   String  @db.VarChar(20)
-  // Un usuario dado de baja se conserva: sus reservas pasadas siguen apuntando
-  // a él, así que se lo desactiva en vez de borrarlo.
   activo     Boolean @default(true)
 
   rolId Int
@@ -101,17 +70,11 @@ model Usuario {
 
 model TipoEvento {
   id     Int    @id @default(autoincrement())
-  // Es un catálogo: un nombre repetido no clasifica nada y partiría los eventos
-  // entre dos ids que significan lo mismo.
   nombre String @unique
 
   eventos Evento[]
 }
 
-/// Una reserva nace PENDIENTE y la confirman sus pagos: pasa a CONFIRMADA recién
-/// cuando la suma de los que no están anulados cubre el precio total. Anular un
-/// pago la devuelve a PENDIENTE. CANCELADA se conserva en vez de borrar la fila,
-/// así el turno queda con su historial.
 enum EstadoReserva {
   PENDIENTE
   CONFIRMADA
@@ -120,17 +83,10 @@ enum EstadoReserva {
 
 model Reserva {
   id          Int           @id @default(autoincrement())
-  // La fecha y las horas se copian del turno con los mismos tipos que Horario
-  // (DATE para que el huso no corra el día, "HH:mm" para que ordenen como el
-  // reloj). Son una copia y no una lectura de la relación a propósito: la
-  // reserva es un registro histórico, y editar el turno después no tiene que
-  // reescribir lo que el usuario reservó.
   fecha       DateTime      @db.Date
   horaInicio  String        @db.VarChar(5)
   horaFin     String        @db.VarChar(5)
   estado      EstadoReserva
-  // Decimal por el mismo motivo que Cancha.precioPorHora: es plata, y sale de
-  // multiplicar el precio por hora por la duración del turno.
   precioTotal Decimal       @db.Decimal(10, 2)
 
   usuarioId Int
@@ -139,52 +95,30 @@ model Reserva {
   canchaId Int
   cancha   Cancha @relation(fields: [canchaId], references: [id])
 
-  // El turno reservado. No lleva @unique aunque cada turno se reserve una sola
-  // vez: al cancelar una reserva el turno vuelve a quedar libre, y un índice
-  // único impediría volver a reservarlo. Lo que impide la doble reserva es
-  // marcar el turno como ocupado dentro de la misma transacción que la crea.
   horarioId Int
   horario   Horario @relation(fields: [horarioId], references: [id])
 
-  // La mayoría de las reservas son un partido y nada más, así que el evento es
-  // opcional: `0..1` del lado de la reserva.
   evento Evento?
 
   pagos Pago[]
 
-  // Lo que se alquila además de la cancha. Se elige al reservar y su subtotal
-  // forma parte del precio total.
   equipamientos ReservaEquipamiento[]
 }
 
-/// Cómo se cobró. Es un enum y no un texto libre para que la base rechace
-/// cualquier otro valor, igual que el estado de la cancha.
 enum MetodoPago {
   EFECTIVO
   TARJETA
   TRANSFERENCIA
 }
 
-/// Un pago no se borra: se anula. La fila se conserva como historial (es un
-/// registro de plata) y un pago anulado deja de contar para el total pagado, así
-/// que la reserva puede volver a PENDIENTE.
 enum EstadoPago {
   REGISTRADO
   ANULADO
 }
 
-/// Lo que se cobró por una reserva.
-///
-/// Es `N:1` y no `1:1` porque la reserva admite pagos parciales: se paga una seña
-/// y el resto después. La reserva pasa a CONFIRMADA recién cuando la suma de sus
-/// pagos no anulados cubre el precio total.
 model Pago {
   id     Int        @id @default(autoincrement())
-  // Decimal por el mismo motivo que los otros importes: es plata, y se suma
-  // contra el total de la reserva.
   monto  Decimal    @db.Decimal(10, 2)
-  // El día en que se cobró. DATE como el resto de las fechas de la API, para que
-  // el huso horario no lo corra de día; lo pone el servidor, no el cliente.
   fecha  DateTime   @db.Date
   metodo MetodoPago
   estado EstadoPago
@@ -193,65 +127,31 @@ model Pago {
   reserva   Reserva @relation(fields: [reservaId], references: [id])
 }
 
-/// Lo que se festeja o se juega en una reserva: un cumpleaños, un torneo, un
-/// partido de la liga. Es un dato del cliente (qué viene a hacer), no del
-/// complejo, y por eso cuelga de la reserva y no del turno: el mismo turno de
-/// las 20:00 sirve para un cumpleaños o para un partido según quién lo reserve.
 model Evento {
   id               Int    @id @default(autoincrement())
   descripcion      String
-  // Cuánta gente va. Es del evento y no de la cancha: la misma cancha admite un
-  // partido de diez y un cumpleaños de cuarenta.
   cantidadPersonas Int
 
   tipoEventoId Int
   tipoEvento   TipoEvento @relation(fields: [tipoEventoId], references: [id])
 
-  // El @unique es lo que hace el 1:0..1 del modelo de dominio: una reserva tiene
-  // a lo sumo un evento. `reservaId` es obligatorio y no opcional porque un
-  // evento sin reserva no significa nada: es el festejo de *esa* reserva.
   reservaId Int     @unique
   reserva   Reserva @relation(fields: [reservaId], references: [id])
 }
 
-/// Lo que el complejo alquila además de la cancha: pelotas, pecheras, paletas.
-///
-/// Es un catálogo propio y no un campo de la cancha porque el mismo artículo se
-/// alquila para cualquiera de ellas, y porque lo que se cobra depende de cuánto
-/// se lleve: la cantidad y el subtotal van en `ReservaEquipamiento`.
 model Equipamiento {
   id          Int     @id @default(autoincrement())
-  // Único por el mismo motivo que el nombre de TipoCancha: dos filas "Pelota de
-  // fútbol" partirían el stock entre dos ids que significan lo mismo, y al
-  // reservar habría que elegir entre dos opciones idénticas, cada una con
-  // disponibilidad incompleta.
   nombre      String  @unique
   descripcion String
-  // Decimal y no Float, como los otros importes: es plata, se multiplica por la
-  // cantidad alquilada y se suma al total de la reserva.
   precio      Decimal @db.Decimal(10, 2)
-  // Cuántas unidades tiene el complejo. Cero es un valor válido: un artículo
-  // agotado sigue estando en el catálogo. Reservar no lo descuenta: una reserva
-  // ocupa sus unidades solo durante su turno (ver `ReservaEquipamiento`).
   stock       Int
 
   reservas ReservaEquipamiento[]
 }
 
-/// Cuántas unidades de un artículo se llevan en una reserva.
-///
-/// El stock del artículo no se toca al reservar: son las unidades que tiene el
-/// complejo, y una reserva las ocupa solo mientras dura su turno. Lo disponible
-/// para un turno es el stock menos lo que alquilan las reservas no canceladas
-/// del mismo día cuyo horario se superpone. Así, cancelar libera las unidades
-/// sin tener que devolver nada, y una pelota reservada para diciembre sigue
-/// sirviendo para el partido de hoy.
 model ReservaEquipamiento {
   id       Int     @id @default(autoincrement())
   cantidad Int
-  // Precio del artículo por la cantidad. Es una copia, como el resto de los
-  // datos de la reserva: si el artículo cambia de precio después, lo que ya se
-  // reservó no tiene que cambiar de total.
   subtotal Decimal @db.Decimal(10, 2)
 
   reservaId Int
@@ -260,7 +160,5 @@ model ReservaEquipamiento {
   equipamientoId Int
   equipamiento   Equipamiento @relation(fields: [equipamientoId], references: [id])
 
-  // El mismo artículo dos veces en una reserva es una sola fila con más
-  // cantidad.
   @@unique([reservaId, equipamientoId])
 }

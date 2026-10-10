@@ -24,10 +24,6 @@ describe('equipamiento: validación', () => {
       });
     });
 
-    // El `trim` no es cosmético: la colación de la base ignora los espacios al
-    // final pero no los del principio, así que sin esto una " Pelota" pasaría el
-    // índice único y quedarían dos artículos con el mismo nombre repartiéndose
-    // el stock.
     it('recorta los espacios del nombre y de la descripción', () => {
       const { datos } = validarDatos(cuerpo({ nombre: '  Pelota  ', descripcion: '  Número 5  ' }));
 
@@ -58,15 +54,11 @@ describe('equipamiento: validación', () => {
       assert.match(validarDatos(cuerpo({ precio: 'gratis' })).mensaje, /precio/);
     });
 
-    // Un artículo a precio cero o negativo daría subtotales de cero o que
-    // descuentan del total de la reserva.
     it('rechaza un precio de cero o negativo', () => {
       assert.match(validarDatos(cuerpo({ precio: 0 })).mensaje, /mayor a cero/);
       assert.match(validarDatos(cuerpo({ precio: -100 })).mensaje, /mayor a cero/);
     });
 
-    // El cero es válido a propósito: un artículo agotado sigue estando en el
-    // catálogo, y es lo que permite sacarlo de circulación sin borrarlo.
     it('acepta un stock de cero', () => {
       assert.equal(validarDatos(cuerpo({ stock: 0 })).datos.stock, 0);
     });
@@ -75,7 +67,6 @@ describe('equipamiento: validación', () => {
       assert.match(validarDatos(cuerpo({ stock: -1 })).mensaje, /mayor o igual a cero/);
     });
 
-    // Las unidades se prestan de a una: media pelota no significa nada.
     it('rechaza un stock con decimales', () => {
       assert.match(validarDatos(cuerpo({ stock: 2.5 })).mensaje, /entero/);
     });
@@ -86,8 +77,6 @@ describe('equipamiento: validación', () => {
   });
 
   describe('aRespuesta', () => {
-    // Prisma devuelve el Decimal como string y el frontend lo necesita como
-    // número para formatearlo y multiplicarlo por la cantidad alquilada.
     it('convierte el precio a número', () => {
       assert.equal(aRespuesta({ id: 1, precio: '1500.00' }).precio, 1500);
     });

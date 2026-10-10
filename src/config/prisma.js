@@ -8,9 +8,6 @@ const adapter = new PrismaMariaDb({
   password: baseDeDatos.contrasena,
   database: baseDeDatos.base,
   port: baseDeDatos.puerto,
-  // MySQL 8 autentica con caching_sha2_password: cuando su caché está vacío
-  // (por ejemplo tras reiniciar el servicio) exige intercambiar una clave RSA,
-  // que el conector solo pide si se lo habilita explícitamente.
   allowPublicKeyRetrieval: true
 });
 

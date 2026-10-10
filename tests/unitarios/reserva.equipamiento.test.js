@@ -11,7 +11,6 @@ const {
   aRespuesta
 } = require('../../src/controllers/reserva.controller');
 
-/** Artículo tal como lo devuelve Prisma: el precio llega como texto. */
 const pelota = { id: 1, nombre: 'Pelota de fútbol', precio: '1500.00', stock: 10 };
 const pechera = { id: 2, nombre: 'Pechera', precio: '800.50', stock: 4 };
 
@@ -21,7 +20,6 @@ describe('reserva con equipamiento: reglas del negocio', () => {
       assert.equal(subtotalDe(1500, 3), 4500);
     });
 
-    // Prisma devuelve los Decimal como string.
     it('acepta el precio como texto', () => {
       assert.equal(subtotalDe('800.50', 3), 2401.5);
     });
@@ -96,8 +94,6 @@ describe('reserva con equipamiento: reglas del negocio', () => {
       assert.equal(disponiblesDe(pelota, new Map()), 10);
     });
 
-    // Si se bajó el stock después de alquilar, lo alquilado puede superarlo:
-    // no quedan unidades, pero tampoco una cantidad negativa.
     it('nunca da negativo', () => {
       assert.equal(disponiblesDe(pechera, new Map([[2, 6]])), 0);
     });
