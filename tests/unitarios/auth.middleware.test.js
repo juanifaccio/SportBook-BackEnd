@@ -12,10 +12,6 @@ const conToken = (token) => crearReq({ headers: { authorization: `Bearer ${token
 const usuarioConRol = (nombre) => ({ id: 1, nombre: 'Alguien', rol: { id: 1, nombre } });
 
 describe('middlewares/auth', () => {
-  // Los casos que sí llegan a consultar la base (usuario borrado, dado de baja,
-  // cambio de rol) se cubren en `tests/integracion/auth.test.js`, donde hay una
-  // base de verdad contra la que releerlo. Acá quedan los que se resuelven antes
-  // de tocarla, que son los que deciden si el request sigue o no.
   describe('autenticar', () => {
     it('rechaza el request sin cabecera Authorization', async () => {
       const res = crearRes();
@@ -49,8 +45,6 @@ describe('middlewares/auth', () => {
       assert.equal(next.llamado, false);
     });
 
-    // El caso que justifica firmar con un secreto: un token con la forma correcta
-    // pero firmado por otro no vale nada.
     it('rechaza un token firmado con otro secreto', async () => {
       const ajeno = jwt.sign({ id: 1, rol: ROLES.ADMIN }, 'otro-secreto-de-mas-de-32-caracteres');
       const res = crearRes();
@@ -74,8 +68,6 @@ describe('middlewares/auth', () => {
       assert.equal(next.llamado, false);
     });
 
-    // Mismo mensaje para el token vencido y para el adulterado: distinguirlos solo
-    // le diría a quien lo fabricó qué le falló.
     it('no distingue el token vencido del inválido', async () => {
       const vencido = jwt.sign({ id: 1 }, configJwt.secreto, { expiresIn: '-1s' });
       const inventado = 'a.b.c';
@@ -122,8 +114,6 @@ describe('middlewares/auth', () => {
       assert.equal(next.llamado, true);
     });
 
-    // Es 401 y no 403 porque sin usuario en el request no hay sesión que evaluar:
-    // el problema es que no inició sesión, no que le falte un permiso.
     it('responde 401 si no hay usuario en el request', () => {
       const res = crearRes();
       const next = crearNext();

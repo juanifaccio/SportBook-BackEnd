@@ -19,9 +19,6 @@ describe('cancha: validación', () => {
       });
     });
 
-    // El `trim` no es cosmético: la colación de la base ignora los espacios al
-    // final pero no los del principio, así que sin esto una " Cancha 1" pasaría
-    // el índice único y quedarían dos canchas con el mismo nombre.
     it('recorta los espacios del nombre', () => {
       assert.equal(validarDatos(cuerpo({ nombre: '  Cancha 1  ' })).datos.nombre, 'Cancha 1');
     });
@@ -45,8 +42,6 @@ describe('cancha: validación', () => {
       assert.match(validarDatos(cuerpo({ precioPorHora: 'gratis' })).mensaje, /precio/);
     });
 
-    // Una cancha a precio cero o negativo daría reservas por cero pesos: el
-    // total de la reserva se calcula multiplicando este precio.
     it('rechaza un precio de cero o negativo', () => {
       assert.match(validarDatos(cuerpo({ precioPorHora: 0 })).mensaje, /mayor a cero/);
       assert.match(validarDatos(cuerpo({ precioPorHora: -100 })).mensaje, /mayor a cero/);
@@ -71,13 +66,10 @@ describe('cancha: validación', () => {
   });
 
   describe('armarFiltro', () => {
-    // Sin query el listado es el catálogo entero: un `where` vacío, no uno con
-    // claves en `undefined`, que Prisma interpretaría como "campo nulo".
     it('sin filtros devuelve un where vacío', () => {
       assert.deepEqual(armarFiltro({}), { filtro: {} });
     });
 
-    // El tipo llega de la query, o sea siempre como texto.
     it('acepta el tipo como texto y lo convierte a número', () => {
       assert.deepEqual(armarFiltro({ tipoCanchaId: '3' }), { filtro: { tipoCanchaId: 3 } });
     });
@@ -86,9 +78,6 @@ describe('cancha: validación', () => {
       assert.match(armarFiltro({ tipoCanchaId: 'futbol' }).mensaje, /tipo de cancha/);
     });
 
-    // Un tipo que no existe no es un error: es un filtro que no da resultados.
-    // Comprobarlo contra la base costaría una consulta para devolver la lista
-    // vacía que la consulta filtrada ya devuelve sola.
     it('acepta un id de tipo que puede no existir', () => {
       assert.deepEqual(armarFiltro({ tipoCanchaId: '9999' }), { filtro: { tipoCanchaId: 9999 } });
     });
@@ -99,8 +88,6 @@ describe('cancha: validación', () => {
   });
 
   describe('aRespuesta', () => {
-    // Prisma devuelve el Decimal como string y el frontend lo necesita como
-    // número para formatearlo y multiplicarlo.
     it('convierte el precio a número', () => {
       assert.equal(aRespuesta({ id: 1, precioPorHora: '12000.00' }).precioPorHora, 12000);
     });

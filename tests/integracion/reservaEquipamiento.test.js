@@ -5,19 +5,11 @@ const request = require('supertest');
 const app = require('../../src/app');
 const { prisma, verificarBaseDePrueba, limpiar, sembrar, autorizacion } = require('../apoyo/base');
 
-/**
- * Reservar con equipamiento. Lo que se prueba acá es la regla del stock: el
- * stock son las unidades del complejo y no se descuenta, sino que cada reserva
- * ocupa sus unidades durante su turno. Hacen falta dos canchas abiertas a la
- * misma hora para verlo, así que la suite agrega una segunda y sus turnos.
- */
 describe('reservas con equipamiento', () => {
   let datos;
   let admin;
   let cliente;
-  /** Turno de la segunda cancha que se superpone con `turnoLibre` (10:00 a 11:00). */
   let turnoSuperpuesto;
-  /** Turno de la segunda cancha del mismo día que no se superpone con `turnoLibre`. */
   let turnoDeLaTarde;
 
   before(verificarBaseDePrueba);
@@ -52,7 +44,6 @@ describe('reservas con equipamiento', () => {
       .set(...cliente)
       .send({ horarioId, equipamientos });
 
-  /** Pelotas: el equipamiento sembrado, 1500 cada una y 10 de stock. */
   const pelotas = (cantidad) => [{ equipamientoId: datos.equipamiento.id, cantidad }];
 
   const disponiblesEn = async (horarioId) => {
@@ -77,7 +68,6 @@ describe('reservas con equipamiento', () => {
     it('suma el equipamiento al precio total', async () => {
       const { body } = await reservar(datos.turnoLibre.id, pelotas(2));
 
-      // 12000 de la hora de cancha más 2 × 1500.
       assert.equal(body.precioTotal, 15000);
     });
 
@@ -103,8 +93,6 @@ describe('reservas con equipamiento', () => {
       assert.match(respuesta.body.mensaje, /Pelota de fútbol/);
     });
 
-    // Si el equipamiento no alcanza no se reserva nada: la reserva y lo que se
-    // alquila con ella van en la misma transacción.
     it('si el equipamiento no alcanza tampoco toma el turno', async () => {
       await reservar(datos.turnoLibre.id, pelotas(11));
 
@@ -158,8 +146,6 @@ describe('reservas con equipamiento', () => {
       assert.equal(respuesta.status, 201);
     });
 
-    // El turno de 11:00 a 12:30 de la misma cancha empieza justo cuando termina
-    // el de 10:00 a 11:00: se tocan pero no se superponen.
     it('un turno que empieza cuando termina el otro no compite con él', async () => {
       await reservar(datos.turnoLibre.id, pelotas(10));
 
@@ -178,8 +164,6 @@ describe('reservas con equipamiento', () => {
       assert.equal(respuesta.status, 201);
     });
 
-    // Las dos llegan a la vez y piden la última tanda: aunque sean turnos
-    // distintos, la base tiene que dejar pasar a una sola.
     it('dos pedidos simultáneos no se llevan las mismas unidades', async () => {
       const respuestas = await Promise.all([
         reservar(datos.turnoLibre.id, pelotas(6)),
@@ -228,13 +212,11 @@ describe('reservas con equipamiento', () => {
         .set(...cliente)
         .send({ horarioId: turnoDeLaTarde.id });
 
-      // 10000 de la hora en la otra cancha más 2 × 1500.
       assert.equal(body.precioTotal, 13000);
       assert.equal(body.equipamientos[0].cantidad, 2);
     });
 
     it('rechaza con 409 un turno donde el equipamiento no alcanza', async () => {
-      // A la tarde ya hay 9 de las 10 pelotas alquiladas en la otra cancha.
       const turnoDeLaTardeEnLaCancha1 = await prisma.horario.create({
         data: { fecha: turnoDeLaTarde.fecha, horaInicio: '18:30', horaFin: '19:30', canchaId: datos.cancha.id }
       });
@@ -249,14 +231,11 @@ describe('reservas con equipamiento', () => {
 
       assert.equal(respuesta.status, 409);
 
-      // La reserva sigue en su turno: la transacción se deshizo entera.
       const guardada = await prisma.reserva.findUnique({ where: { id: reserva.id } });
 
       assert.equal(guardada.horarioId, datos.turnoLibre.id);
     });
 
-    // El turno nuevo se superpone con el viejo: sin excluir la propia reserva
-    // del conteo, la reserva competiría consigo misma por sus 10 pelotas.
     it('no compite consigo misma al moverse a un turno superpuesto', async () => {
       const { body: reserva } = await reservar(datos.turnoLibre.id, pelotas(10));
 

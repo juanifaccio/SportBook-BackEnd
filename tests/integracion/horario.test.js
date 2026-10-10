@@ -26,7 +26,6 @@ describe('turnos de una cancha', () => {
     await prisma.$disconnect();
   });
 
-  /** Reserva el turno como cliente, por la API, igual que desde `/reservar`. */
   const reservar = async (horario) => {
     const respuesta = await request(app)
       .post('/api/reservas')
@@ -46,7 +45,6 @@ describe('turnos de una cancha', () => {
     assert.equal(respuesta.status, 200);
   };
 
-  /** El cuerpo que deja el turno libre de la siembra tal como está. */
   const sinCambios = (cambios = {}) => ({
     fecha: datos.turnoLibre.fecha.toISOString().slice(0, 10),
     horaInicio: datos.turnoLibre.horaInicio,
@@ -71,9 +69,6 @@ describe('turnos de una cancha', () => {
         .send(turno());
 
       assert.equal(respuesta.status, 201);
-      // El día tiene que volver igual que como entró: se guarda como DATE y
-      // Prisma lo devuelve a medianoche UTC, así que sin recortarlo el huso
-      // horario lo correría al día anterior.
       assert.equal(respuesta.body.fecha, OTRO_DIA);
       assert.equal(respuesta.body.disponible, true);
     });
@@ -87,8 +82,6 @@ describe('turnos de una cancha', () => {
       assert.equal(typeof respuesta.body.cancha.precioPorHora, 'number');
     });
 
-    // Esta validación es la que mantiene simple el caso de uso de reservar: si
-    // los turnos no se pisan, alcanza con elegir uno libre.
     it('rechaza un turno que se superpone con otro de la misma cancha', async () => {
       await request(app).post('/api/horarios').set(...admin).send(turno());
 
@@ -112,8 +105,6 @@ describe('turnos de una cancha', () => {
       assert.equal(respuesta.status, 409);
     });
 
-    // Dos turnos pegados no se solapan: el que termina a las 19:00 deja libre
-    // ese instante para el que arranca ahí.
     it('acepta un turno que arranca justo cuando termina el anterior', async () => {
       await request(app).post('/api/horarios').set(...admin).send(turno());
 
@@ -147,8 +138,6 @@ describe('turnos de una cancha', () => {
       assert.equal(respuesta.status, 201);
     });
 
-    // La cancha llega en el cuerpo, así que un id inexistente es un dato
-    // inválido del cliente y no un recurso faltante en la URL.
     it('rechaza con 400 una cancha que no existe', async () => {
       const respuesta = await request(app)
         .post('/api/horarios')
@@ -227,21 +216,13 @@ describe('turnos de una cancha', () => {
       assert.equal(respuesta.body.length, 4);
     });
 
-    // Es lo que permite ampliar una grilla ya empezada sin mirar antes cuáles
-    // faltan: los que ya están se saltean y el resto se crea igual.
     it('saltea los turnos que se pisan con los ya cargados y crea el resto', async () => {
-      // La cancha sembrada ya tiene mañana de 10:00 a 11:00 y de 11:00 a 12:30.
       const respuesta = await request(app)
         .post('/api/horarios/lote')
         .set(...admin)
         .send(lote({ fecha: MANANA, horaInicio: '08:00', horaFin: '13:00' }));
 
       assert.equal(respuesta.status, 201);
-      // De los cinco turnos del rango se crean los dos primeros. El de las 10:00
-      // se pisa con el turno sembrado a esa hora, y los de las 11:00 y las 12:00
-      // con el de 11:00 a 12:30: un turno cargado a mano no tiene por qué encajar
-      // en la grilla que se está generando, y el que sobresale se lleva puesto al
-      // siguiente.
       assert.deepEqual(
         respuesta.body.creados.map((turno) => turno.horaInicio),
         ['08:00', '09:00']
@@ -259,8 +240,6 @@ describe('turnos de una cancha', () => {
         where: { id: datos.otroTurnoLibre.id }
       });
 
-      // El turno sembrado de 11:00 a 12:30 no encaja en una grilla de una hora:
-      // si el lote lo hubiera pisado, habría quedado de 11:00 a 12:00.
       assert.equal(guardado.horaFin, '12:30');
     });
 
@@ -330,7 +309,6 @@ describe('turnos de una cancha', () => {
       assert.equal(cuantos, 0);
     });
 
-    // La grilla de la cancha la define el complejo, igual que el alta de a uno.
     it('le niega la generación al cliente', async () => {
       const respuesta = await request(app)
         .post('/api/horarios/lote')
@@ -358,7 +336,6 @@ describe('turnos de una cancha', () => {
       assert.equal(respuesta.body[0].id, datos.turnoEnMantenimiento.id);
     });
 
-    // Es el filtro que usa la pantalla de reservar: los turnos libres de un día.
     it('filtra por día y disponibilidad', async () => {
       await prisma.horario.update({ where: { id: datos.otroTurnoLibre.id }, data: { disponible: false } });
 
@@ -394,8 +371,6 @@ describe('turnos de una cancha', () => {
       assert.equal(respuesta.body.horaInicio, '20:00');
     });
 
-    // Al editar hay que excluir el propio turno de la búsqueda de solapamientos:
-    // si no, todo turno se solaparía consigo mismo y nunca se podría guardar.
     it('deja guardar un turno sin cambiarle el horario', async () => {
       const respuesta = await request(app)
         .put(`/api/horarios/${datos.turnoLibre.id}`)
@@ -429,8 +404,6 @@ describe('turnos de una cancha', () => {
         await reservar(datos.turnoLibre);
       });
 
-      // Es el caso que importa: marcarlo disponible lo devolvería a la lista de
-      // libres y el próximo cliente lo reservaría por segunda vez.
       it('no lo deja volver a ofrecer', async () => {
         const respuesta = await request(app)
           .put(`/api/horarios/${datos.turnoLibre.id}`)
@@ -467,7 +440,6 @@ describe('turnos de una cancha', () => {
         assert.equal(respuesta.status, 200);
       });
 
-      // La reserva cancelada ya no ocupa el turno: vuelve a ser uno cualquiera.
       it('lo deja mover cuando la reserva se cancela', async () => {
         const [reserva] = (await request(app).get('/api/reservas').set(...admin)).body;
 
@@ -506,7 +478,6 @@ describe('turnos de una cancha', () => {
       assert.notEqual(await prisma.horario.findUnique({ where: { id: datos.turnoLibre.id } }), null);
     });
 
-    // La reserva cancelada se conserva como historial y sigue apuntando al turno.
     it('tampoco uno cuya reserva se canceló', async () => {
       await cancelar(await reservar(datos.turnoLibre));
 

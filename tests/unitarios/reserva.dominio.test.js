@@ -15,7 +15,6 @@ const { diaRelativo, comoDia, comoFechaDeBase } = require('../apoyo/fechas');
 const MANANA = diaRelativo(1);
 const AYER = diaRelativo(-1);
 
-/** Turno tal como lo devuelve Prisma, con la cancha incluida. */
 const turno = (cambios = {}) => ({
   id: 7,
   fecha: comoFechaDeBase(MANANA),
@@ -56,14 +55,10 @@ describe('reserva: reglas del negocio', () => {
       assert.equal(precioDe(turno({ horaFin: '10:30' })), 6000);
     });
 
-    // Prisma devuelve los Decimal como string, así que el precio llega como texto
-    // y multiplicarlo sin convertirlo daría NaN.
     it('acepta el precio como el string que devuelve Prisma', () => {
       assert.equal(precioDe(turno({ cancha: { precioPorHora: '12000.00' } })), 12000);
     });
 
-    // El total va a una columna Decimal(10, 2): sin redondear acá, el tercer
-    // decimal lo terminaría resolviendo la base por su cuenta.
     it('redondea a dos decimales', () => {
       assert.equal(precioDe(turno({ horaFin: '11:30', cancha: { precioPorHora: '3333.33' } })), 5000);
     });
@@ -78,14 +73,7 @@ describe('reserva: reglas del negocio', () => {
       assert.equal(yaEmpezo(comoFechaDeBase(MANANA), '10:00'), false);
     });
 
-    // La fecha se guarda como DATE (medianoche UTC) y la hora aparte, así que hay
-    // que rearmar el instante en hora local: la del complejo es la que decide si
-    // el turno todavía sirve.
     it('compone el instante en hora local, no en UTC', () => {
-      // La hora siguiente en punto, con el día que le corresponde: a las 23 y
-      // pico esa hora cae en el día de mañana, y tomar el de hoy dejaba el turno
-      // 23 horas en el pasado. El test fallaba solo entre las 23:00 y la
-      // medianoche, que es la única franja en la que la suma cambia de día.
       const dentroDeUnRato = new Date(Date.now() + 60 * 60 * 1000);
       const hora = `${String(dentroDeUnRato.getHours()).padStart(2, '0')}:00`;
 
@@ -112,8 +100,6 @@ describe('reserva: reglas del negocio', () => {
       assert.match(mensaje, /ya empezó/);
     });
 
-    // Las dos reglas pueden fallar a la vez y el mensaje es distinto, así que el
-    // orden en el que se comprueban es parte de lo que se responde.
     it('informa el mantenimiento antes que la fecha', () => {
       const invalido = validarTurno(
         turno({ fecha: comoFechaDeBase(AYER), cancha: { estado: 'MANTENIMIENTO' } })
@@ -124,9 +110,6 @@ describe('reserva: reglas del negocio', () => {
   });
 
   describe('datosDelTurno', () => {
-    // Son una copia y no una lectura de la relación: la reserva es un registro
-    // histórico y editar el turno después no tiene que reescribirla. Por eso al
-    // reprogramar hay que volver a copiarlos todos y no solo el `horarioId`.
     it('copia del turno todo lo que la reserva guarda por su cuenta', () => {
       assert.deepEqual(datosDelTurno(turno()), {
         fecha: comoFechaDeBase(MANANA),
@@ -197,9 +180,6 @@ describe('reserva: reglas del negocio', () => {
       assert.equal(aRespuesta(reserva).precioTotal, 12000);
     });
 
-    // El usuario viaja anidado dentro de la reserva, donde el controller de
-    // usuarios no puede hacer nada por él: sin sacarla acá, el hash de bcrypt
-    // saldría en cada listado de reservas.
     it('saca la contraseña del usuario incluido', () => {
       const conUsuario = aRespuesta({
         ...reserva,

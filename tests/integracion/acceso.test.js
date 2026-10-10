@@ -5,13 +5,6 @@ const request = require('supertest');
 const app = require('../../src/app');
 const { prisma, verificarBaseDePrueba, limpiar, sembrar, autorizacion } = require('../apoyo/base');
 
-/**
- * La matriz de permisos, recorrida endpoint por endpoint.
- *
- * Es el test que se rompe si alguien agrega un recurso y se olvida de declararle
- * los permisos en su archivo de rutas: sin sesión no se entra a ningún lado, y
- * administrar el complejo es cosa del administrador.
- */
 describe('niveles de acceso', () => {
   let datos;
 
@@ -28,9 +21,6 @@ describe('niveles de acceso', () => {
   });
 
   describe('sin sesión', () => {
-    // Recorre un endpoint de cada recurso: si mañana se monta uno nuevo sin
-    // `autenticar`, este test no lo ve, pero deja escrito el criterio que se
-    // espera de todos.
     const endpoints = [
       ['get', '/api/tipos-cancha'],
       ['get', '/api/tipos-evento'],
@@ -64,8 +54,6 @@ describe('niveles de acceso', () => {
   });
 
   describe('cliente', () => {
-    // El cliente necesita el catálogo para poder reservar: sin ver las canchas y
-    // sus turnos no podría elegir ninguno.
     it('consulta los tipos de cancha, las canchas, los horarios y el equipamiento', async () => {
       for (const ruta of ['/api/tipos-cancha', '/api/tipos-evento', '/api/canchas', '/api/horarios', '/api/equipamientos']) {
         const respuesta = await request(app).get(ruta).set(...autorizacion(datos.cliente));
@@ -109,8 +97,6 @@ describe('niveles de acceso', () => {
       assert.equal(horario.status, 403);
     });
 
-    // El cliente lee el catálogo de equipamiento porque lo necesita para elegir
-    // qué alquila, pero el stock y los precios los maneja el complejo.
     it('lee el equipamiento pero no lo administra', async () => {
       const lectura = await request(app)
         .get('/api/equipamientos')
@@ -136,8 +122,6 @@ describe('niveles de acceso', () => {
       assert.equal(baja.status, 403);
     });
 
-    // Usuarios y roles son administración pura: quién existe en el complejo y con
-    // qué nivel de acceso no es asunto de un cliente.
     it('no llega a los usuarios ni a los roles', async () => {
       const usuarios = await request(app).get('/api/usuarios').set(...autorizacion(datos.cliente));
       const roles = await request(app).get('/api/roles').set(...autorizacion(datos.cliente));

@@ -13,14 +13,10 @@ const ROLES = require('../config/roles');
 
 const router = express.Router();
 
-// El cliente consulta los turnos para elegir uno libre; cargarlos y darlos de
-// baja es del complejo, que es quien define la grilla de la cancha.
 router.use(autenticar);
 
 router.get('/', listarHorarios);
 router.post('/', autorizar(ROLES.ADMIN), crearHorario);
-// Antes del '/:id' de abajo no hace falta (son verbos distintos), pero va acá
-// para que se lea junto al alta de a uno, que es la operación que reemplaza.
 router.post('/lote', autorizar(ROLES.ADMIN), generarHorarios);
 router.get('/:id', obtenerHorario);
 router.put('/:id', autorizar(ROLES.ADMIN), actualizarHorario);

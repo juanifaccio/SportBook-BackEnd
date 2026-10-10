@@ -12,8 +12,6 @@ const ROLES = require('../config/roles');
 
 const router = express.Router();
 
-// Mismo criterio que tipos de cancha: se consulta con sesión, se administra
-// siendo administrador.
 router.use(autenticar);
 
 router.get('/', listarTiposEvento);

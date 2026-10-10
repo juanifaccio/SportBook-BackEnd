@@ -3,15 +3,6 @@ const assert = require('node:assert/strict');
 
 const RUTA = require.resolve('../../src/config/env');
 
-/**
- * Configuración completa y válida. Cada test parte de acá y rompe una sola
- * variable, así lo que falla es siempre lo que el test dice estar probando.
- *
- * Las opcionales van en cadena vacía y no borradas: `src/config/env.js` carga el
- * `.env` con dotenv, que solo completa las variables que **no** están en el
- * ambiente. Una variable borrada se rellenaría con el `.env` de quien corre los
- * tests y el resultado dependería de su máquina; una vacía, no.
- */
 const AMBIENTE_VALIDO = {
   DATABASE_URL: 'mysql://sportbook:secreto@localhost:3306/sportsbook_test',
   JWT_SECRET: 'un-secreto-de-exactamente-32-cars',
@@ -23,11 +14,6 @@ const AMBIENTE_VALIDO = {
 
 const original = { ...process.env };
 
-/**
- * Vuelve a importar la configuración con el ambiente indicado. Hay que limpiar
- * la caché de módulos porque `env.js` lee `process.env` y valida una sola vez,
- * al importarse: sin esto, el segundo test recibiría el resultado del primero.
- */
 const cargar = (cambios = {}) => {
   for (const [clave, valor] of Object.entries({ ...AMBIENTE_VALIDO, ...cambios })) {
     process.env[clave] = valor;
@@ -92,9 +78,6 @@ describe('config/env', () => {
       assert.equal(baseDeDatos.puerto, 3306);
     });
 
-    // Una contraseña con `@` o `#` rompe la URL si viaja en claro, así que se
-    // escribe percent-encoded y hay que devolverla a su forma original antes de
-    // pasársela al conector.
     it('decodifica el usuario y la contraseña', () => {
       const { baseDeDatos } = cargar({
         DATABASE_URL: 'mysql://mi%20usuario:cla%40ve%231@localhost:3306/sportsbook_test'
@@ -112,8 +95,6 @@ describe('config/env', () => {
       assert.throws(() => cargar({ DATABASE_URL: 'sportsbook_test' }), /URL válida/);
     });
 
-    // `URL` acepta "localhost:3306" leyendo "localhost:" como protocolo, así que
-    // sin comprobarlo una URL sin esquema pasaría con host vacío y base "3306".
     it('falla si le falta el esquema mysql://', () => {
       assert.throws(() => cargar({ DATABASE_URL: 'localhost:3306/sportsbook_test' }), /mysql:\/\//);
     });
@@ -128,8 +109,6 @@ describe('config/env', () => {
       assert.throws(() => cargar({ JWT_SECRET: '' }), /JWT_SECRET/);
     });
 
-    // Es lo único que separa un token legítimo de uno fabricado: uno corto se
-    // saca por fuerza bruta y con él se firma un token de administrador.
     it('falla si es más corto que 32 caracteres', () => {
       assert.throws(() => cargar({ JWT_SECRET: 'a'.repeat(31) }), /32 caracteres/);
     });
@@ -168,8 +147,6 @@ describe('config/env', () => {
       assert.throws(leerAdminInicial, /ADMIN_EMAIL/);
     });
 
-    // Se lee cuando se la llama y no al importar el módulo: el servidor tiene que
-    // poder arrancar sin estas dos variables, que solo usa el seed.
     it('no impide cargar la configuración cuando faltan', () => {
       assert.doesNotThrow(() => cargar({ ADMIN_EMAIL: '', ADMIN_CONTRASENA: '' }));
     });

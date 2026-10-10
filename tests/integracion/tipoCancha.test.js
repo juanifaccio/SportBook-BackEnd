@@ -5,11 +5,6 @@ const request = require('supertest');
 const app = require('../../src/app');
 const { prisma, verificarBaseDePrueba, limpiar, sembrar, autorizacion } = require('../apoyo/base');
 
-/**
- * El ABM de TipoCancha de punta a punta. Es la implementación de referencia del
- * proyecto, así que se lo recorre entero: lo que se prueba acá es el mismo
- * recorrido que hacen los demás CRUD.
- */
 describe('CRUD de tipos de cancha', () => {
   let datos;
   let admin;
@@ -59,8 +54,6 @@ describe('CRUD de tipos de cancha', () => {
       assert.equal(respuesta.status, 400);
     });
 
-    // Es un catálogo: dos filas con el mismo nombre partirían las canchas entre
-    // dos ids que significan lo mismo.
     it('no admite dos tipos con el mismo nombre', async () => {
       const respuesta = await request(app)
         .post('/api/tipos-cancha')
@@ -93,8 +86,6 @@ describe('CRUD de tipos de cancha', () => {
       assert.equal(respuesta.status, 404);
     });
 
-    // Un id que no es un número es un pedido mal formado, no un recurso que
-    // falta: por eso 400 y no 404.
     it('responde 400 si el id no es un número', async () => {
       const respuesta = await request(app).get('/api/tipos-cancha/pepe').set(...admin);
 
@@ -153,8 +144,6 @@ describe('CRUD de tipos de cancha', () => {
       assert.equal(respuesta.status, 404);
     });
 
-    // La clave foránea de la base es la que frena el borrado; el controller
-    // traduce ese error de Prisma a un 409 con un mensaje que se entienda.
     it('no elimina un tipo que tiene canchas asociadas', async () => {
       const respuesta = await request(app).delete(`/api/tipos-cancha/${datos.tipoCancha.id}`).set(...admin);
 
