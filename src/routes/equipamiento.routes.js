@@ -12,8 +12,6 @@ const ROLES = require('../config/roles');
 
 const router = express.Router();
 
-// El catálogo se lee con sesión (el cliente lo va a necesitar para elegir qué
-// alquila al reservar) y lo administra el complejo, como el resto del catálogo.
 router.use(autenticar);
 
 router.get('/', listarEquipamientos);

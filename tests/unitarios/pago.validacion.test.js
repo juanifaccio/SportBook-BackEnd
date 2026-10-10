@@ -26,8 +26,6 @@ describe('pago: validación', () => {
       assert.match(validarDatos(cuerpo({ monto: 'gratis' })).mensaje, /monto/);
     });
 
-    // Un pago de cero no es un pago, y uno negativo sería una devolución, que el
-    // sistema no hace.
     it('rechaza un monto de cero o negativo', () => {
       assert.match(validarDatos(cuerpo({ monto: 0 })).mensaje, /mayor a cero/);
       assert.match(validarDatos(cuerpo({ monto: -100 })).mensaje, /mayor a cero/);
@@ -47,8 +45,6 @@ describe('pago: validación', () => {
       assert.match(validarDatos(cuerpo({ metodo: 'efectivo' })).mensaje, /EFECTIVO/);
     });
 
-    // La fecha la pone el servidor (un pago se registra cuando se cobra) y el
-    // estado nace REGISTRADO.
     it('descarta la fecha y el estado aunque vengan en el cuerpo', () => {
       const { datos } = validarDatos(cuerpo({ fecha: '2020-01-01', estado: 'ANULADO' }));
 
@@ -88,8 +84,6 @@ describe('pago: validación', () => {
       assert.equal(saldoDe(12000, [pago(5000), pago(3000)]), 4000);
     });
 
-    // Anular un pago lo saca de la cuenta: es lo que permite que una reserva
-    // vuelva a PENDIENTE.
     it('no cuenta los pagos anulados', () => {
       assert.equal(saldoDe(12000, [pago(5000), pago(7000, 'ANULADO')]), 7000);
     });
@@ -98,7 +92,6 @@ describe('pago: validación', () => {
       assert.equal(saldoDe(12000, [pago(12000)]), 0);
     });
 
-    // Los montos llegan de Prisma como Decimal, que se serializa a string.
     it('suma montos que vienen como texto', () => {
       assert.equal(saldoDe('12000.00', [pago('4000.00')]), 8000);
     });
@@ -133,8 +126,6 @@ describe('pago: validación', () => {
       );
     });
 
-    // Cancelar es una decisión, no algo que se derive de la plata: una reserva
-    // cancelada no vuelve sola por tener sus pagos en orden.
     it('una reserva cancelada se queda cancelada', () => {
       assert.equal(
         estadoSegunPagos(reserva('CANCELADA'), [{ monto: 12000, estado: 'REGISTRADO' }]),
@@ -142,8 +133,6 @@ describe('pago: validación', () => {
       );
     });
 
-    // Puede pasar al reprogramar una reserva ya paga a un turno más barato: no
-    // hay nada que devolver, así que se da por cubierta.
     it('un saldo negativo cuenta como paga', () => {
       assert.equal(
         estadoSegunPagos(reserva('CONFIRMADA', 8000), [{ monto: 12000, estado: 'REGISTRADO' }]),

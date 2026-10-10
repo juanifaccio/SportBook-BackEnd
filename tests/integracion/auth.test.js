@@ -24,8 +24,6 @@ describe('autenticación', () => {
   });
 
   describe('POST /api/auth/login', () => {
-    // Es el único endpoint de toda la API al que se puede llegar sin token: si
-    // pidiera sesión, no habría forma de conseguir la primera.
     it('no exige sesión', async () => {
       const respuesta = await request(app).post('/api/auth/login').send({});
 
@@ -51,8 +49,6 @@ describe('autenticación', () => {
       assert.equal('contrasena' in respuesta.body.usuario, false);
     });
 
-    // El token es lo que el resto de la API va a exigir, así que tiene que servir
-    // de verdad y llevar quién es el usuario.
     it('firma un token que identifica al usuario', async () => {
       const respuesta = await request(app)
         .post('/api/auth/login')
@@ -64,8 +60,6 @@ describe('autenticación', () => {
       assert.equal(contenido.rol, ROLES.CLIENTE);
     });
 
-    // El email se guarda en minúsculas: escribirlo con mayúsculas no tiene que
-    // impedir entrar.
     it('acepta el email escrito con mayúsculas y espacios', async () => {
       const respuesta = await request(app)
         .post('/api/auth/login')
@@ -98,8 +92,6 @@ describe('autenticación', () => {
       assert.equal(respuesta.status, 401);
     });
 
-    // Distinguir los dos casos le confirmaría a quien prueba combinaciones qué
-    // emails están registrados, que es la mitad del trabajo de entrar.
     it('responde lo mismo ante un email desconocido que ante una contraseña incorrecta', async () => {
       const emailDesconocido = await request(app)
         .post('/api/auth/login')
@@ -121,8 +113,6 @@ describe('autenticación', () => {
       assert.match(respuesta.body.mensaje, /baja/);
     });
 
-    // El estado de la cuenta se informa recién con la contraseña ya validada:
-    // antes, sería otra forma de averiguar qué emails están registrados.
     it('no revela que la cuenta existe si la contraseña es incorrecta', async () => {
       const respuesta = await request(app)
         .post('/api/auth/login')
@@ -164,9 +154,6 @@ describe('autenticación', () => {
     });
   });
 
-  // El perfil propio va sobre el usuario de la sesión y no sobre un `:id`: acá
-  // se comprueba que sea de verdad el suyo y, sobre todo, que la lista blanca de
-  // campos aguante lo que le manden.
   describe('PUT /api/auth/yo', () => {
     const perfil = (cambios = {}) => ({
       nombre: 'Nombre Corregido',
@@ -205,8 +192,6 @@ describe('autenticación', () => {
       assert.equal('contrasena' in respuesta.body, false);
     });
 
-    // El corazón de la tarea: sin esto un cliente se asciende con un PUT a sus
-    // propios datos.
     it('ignora el rol que venga en el cuerpo', async () => {
       const rolAdmin = await prisma.rol.findUnique({ where: { nombre: ROLES.ADMIN } });
 
@@ -229,8 +214,6 @@ describe('autenticación', () => {
       assert.equal(guardado.activo, true);
     });
 
-    // La contraseña tiene su propio endpoint, que además pide la actual: si se
-    // colara por acá, alcanzaría un token prestado para cambiarla.
     it('ignora la contraseña que venga en el cuerpo', async () => {
       const antes = await prisma.usuario.findUnique({ where: { id: datos.cliente.id } });
 
@@ -255,8 +238,6 @@ describe('autenticación', () => {
       assert.match(respuesta.body.mensaje, /ese email/);
     });
 
-    // No hace falta ser administrador: cualquiera con sesión gestiona su propia
-    // cuenta.
     it('también le sirve al administrador', async () => {
       const respuesta = await actualizar(datos.admin, perfil({ email: 'jefa@test.local' }));
 
@@ -312,8 +293,6 @@ describe('autenticación', () => {
       assert.match(guardado.contrasena, /^\$2[aby]\$/);
     });
 
-    // 400 y no 401: la sesión sirve, lo que está mal es un dato del formulario.
-    // Con un 401 el frontend cerraría la sesión por un error de tipeo.
     it('rechaza con 400 una contraseña actual incorrecta, y no cambia nada', async () => {
       const respuesta = await cambiar(datos.cliente, {
         contrasenaActual: 'no-es-esta',
@@ -348,8 +327,6 @@ describe('autenticación', () => {
       assert.equal(respuesta.status, 401);
     });
 
-    // El token sigue valiendo: quien se cambia la clave no tiene por qué quedar
-    // deslogueado.
     it('la sesión en curso sigue funcionando', async () => {
       const cabecera = autorizacion(datos.cliente);
 
@@ -364,10 +341,6 @@ describe('autenticación', () => {
     });
   });
 
-  // El middleware relee el usuario de la base en cada request en vez de confiar
-  // en lo que dice el token. Estos tres casos son los que justifican esa consulta
-  // de más: con un token válido por horas, confiar en su contenido dejaría
-  // entrar a quien ya no debería.
   describe('el token no manda: el usuario se relee de la base', () => {
     it('corta el acceso apenas se da de baja al usuario', async () => {
       const token = tokenDe(datos.cliente);
@@ -376,9 +349,6 @@ describe('autenticación', () => {
 
       const respuesta = await request(app).get('/api/auth/yo').set('Authorization', `Bearer ${token}`);
 
-      // 401 y no 403: lo que dejó de valer es la sesión, no el permiso para este
-      // endpoint. Es lo que le permite al frontend deslogear en vez de dejar al
-      // usuario viendo un error en cada pantalla.
       assert.equal(respuesta.status, 401);
       assert.match(respuesta.body.mensaje, /baja/);
     });
@@ -394,7 +364,6 @@ describe('autenticación', () => {
     });
 
     it('usa el rol de la base y no el que viaja en el token', async () => {
-      // Token emitido cuando todavía era cliente.
       const token = tokenDe(datos.cliente);
 
       const rolAdmin = await prisma.rol.findUnique({ where: { nombre: ROLES.ADMIN } });
@@ -405,8 +374,6 @@ describe('autenticación', () => {
       assert.equal(respuesta.body.rol.nombre, ROLES.ADMIN);
     });
 
-    // El caso inverso, que es el que importa para la seguridad: un token que
-    // dice ADMIN no alcanza para administrar nada.
     it('no deja administrar con un token que se declara admin', async () => {
       const mentiroso = jwt.sign({ id: datos.cliente.id, rol: ROLES.ADMIN }, configJwt.secreto);
 

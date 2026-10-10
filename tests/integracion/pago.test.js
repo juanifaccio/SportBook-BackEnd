@@ -5,16 +5,6 @@ const request = require('supertest');
 const app = require('../../src/app');
 const { prisma, verificarBaseDePrueba, limpiar, sembrar, autorizacion } = require('../apoyo/base');
 
-/**
- * Los pagos de una reserva y su efecto sobre ella.
- *
- * Lo que solo se ve al juntar las piezas es que registrar y anular cambien el
- * estado de la reserva en la misma transacción, y que la plata la cobre el
- * complejo: un cliente ve lo suyo pero no registra nada.
- *
- * El turno sembrado sale 12000 (una hora a 12000), así que ese es el precio total
- * de la reserva sobre la que trabajan casi todos los casos.
- */
 describe('pagos de una reserva', () => {
   let datos;
   let admin;
@@ -22,7 +12,6 @@ describe('pagos de una reserva', () => {
   let otroCliente;
   let reserva;
 
-  /** Precio total de la reserva que se crea en el beforeEach. */
   const TOTAL = 12000;
 
   before(verificarBaseDePrueba);
@@ -91,7 +80,6 @@ describe('pagos de una reserva', () => {
       assert.equal(Number(guardado.monto), 5000);
     });
 
-    // Un pago parcial no alcanza: la reserva se confirma cuando está paga entera.
     it('un pago parcial deja la reserva en PENDIENTE', async () => {
       await cobrar(admin, { monto: 5000 });
 
@@ -102,7 +90,6 @@ describe('pagos de una reserva', () => {
       const respuesta = await cobrar(admin, { monto: TOTAL });
 
       assert.equal(await estadoDeLaReserva(), 'CONFIRMADA');
-      // Y la reserva incluida en la respuesta ya viene con el estado nuevo.
       assert.equal(respuesta.body.reserva.estado, 'CONFIRMADA');
     });
 
@@ -115,7 +102,6 @@ describe('pagos de una reserva', () => {
       assert.equal(await estadoDeLaReserva(), 'CONFIRMADA');
     });
 
-    // Cobrar de más dejaría un saldo negativo que el sistema no sabe devolver.
     it('rechaza un monto que supera el saldo', async () => {
       await cobrar(admin, { monto: 10000 });
 
@@ -160,8 +146,6 @@ describe('pagos de una reserva', () => {
       assert.match(respuesta.body.mensaje, /EFECTIVO/);
     });
 
-    // La reserva llega en el cuerpo, así que un id inexistente es un dato
-    // inválido del cliente y no un recurso faltante en la URL.
     it('rechaza con 400 una reserva que no existe', async () => {
       const respuesta = await request(app)
         .post('/api/pagos')
@@ -172,7 +156,6 @@ describe('pagos de una reserva', () => {
       assert.match(respuesta.body.mensaje, /no existe/);
     });
 
-    // La plata la cobra el complejo: un cliente no declara sus propios pagos.
     it('un cliente no puede registrar un pago, ni el de su propia reserva', async () => {
       const respuesta = await cobrar(cliente, { monto: 5000 });
 
@@ -207,7 +190,6 @@ describe('pagos de una reserva', () => {
       assert.equal(respuesta.body.length, 2);
     });
 
-    // El listado del cliente es siempre el de sus propias reservas.
     it('el cliente solo ve los de sus reservas', async () => {
       const respuesta = await request(app).get('/api/pagos').set(...cliente);
 
@@ -290,8 +272,6 @@ describe('pagos de una reserva', () => {
       assert.equal(respuesta.body.metodo, 'TRANSFERENCIA');
     });
 
-    // El monto de un pago no se edita: para eso se anula y se registra el
-    // correcto. Si se pudiera, habría que recalcular la reserva desde acá.
     it('ignora el monto que venga en el cuerpo', async () => {
       await corregir(admin, { metodo: 'TARJETA', monto: 1 });
 
@@ -328,8 +308,6 @@ describe('pagos de una reserva', () => {
       pago = (await cobrar(admin, { monto: TOTAL })).body;
     });
 
-    // Un pago es un registro de plata: se conserva como historial, igual que una
-    // reserva cancelada. Por eso el recurso no tiene DELETE.
     it('lo deja en ANULADO sin borrar la fila', async () => {
       const respuesta = await anular(admin, pago.id);
 
@@ -344,7 +322,6 @@ describe('pagos de una reserva', () => {
       const respuesta = await anular(admin, pago.id);
 
       assert.equal(await estadoDeLaReserva(), 'PENDIENTE');
-      // Y la reserva incluida en la respuesta ya viene con el estado nuevo.
       assert.equal(respuesta.body.reserva.estado, 'PENDIENTE');
     });
 
@@ -388,8 +365,6 @@ describe('pagos de una reserva', () => {
       assert.equal(respuesta.body.pagos[0].monto, 5000);
     });
 
-    // Reprogramar copia el precio del turno nuevo, así que lo pagado puede dejar
-    // de alcanzar. El turno de hora y media sale 18000 contra los 12000 de este.
     it('reprogramar a un turno más caro devuelve la reserva a PENDIENTE', async () => {
       await cobrar(admin, { monto: TOTAL });
       assert.equal(await estadoDeLaReserva(), 'CONFIRMADA');
